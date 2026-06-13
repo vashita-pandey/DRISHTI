@@ -3,6 +3,7 @@ import ZoneSelector from './ZoneSelector'
 import { scoreSeverity, getVerdict } from '../utils'
 import { db } from '../db/db'
 import { loadModel, runInference } from '../inference'
+import AMMSearch from './AMMSearch'
 
 const TAIL_NUMBERS = ['VT-TEST-001', 'VT-TEST-002', 'VT-TEST-003']
 
@@ -251,7 +252,15 @@ export default function LiveScan() {
       {cameraActive && (
         <ZoneSelector selectedZone={selectedZone} onZoneSelect={setSelectedZone} />
       )}
+      {/* AMM Repair Guidance */}
+      {currentDetection && (
+        <AMMSearch
+          defectType={currentDetection.label}
+          zone={selectedZone}
+        />
+      )}
 
     </div>
   )
 }
+
