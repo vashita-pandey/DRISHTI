@@ -1,0 +1,1 @@
+export const MM_PER_PIXEL = 0.05;
