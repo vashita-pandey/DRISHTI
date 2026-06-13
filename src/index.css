@@ -1,0 +1,33 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #0a0f1a;
+  color: #e2e8f0;
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 12px;
+}
+
+h1 {
+  font-size: 48px;
+  font-weight: 700;
+  color: #00c2ff;
+  letter-spacing: -0.02em;
+}
+
+p {
+  color: #64748b;
+  font-size: 16px;
+}

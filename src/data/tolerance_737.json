@@ -1,0 +1,45 @@
+{
+  "aircraft_type": "Boeing 737",
+  "defect_tolerances": {
+    "crack": {
+      "nose": 2.0,
+      "left_wing": 4.0,
+      "right_wing": 4.0,
+      "fuselage_front": 3.0,
+      "fuselage_rear": 3.0,
+      "tail": 2.5
+    },
+    "corrosion": {
+      "nose": 5.0,
+      "left_wing": 8.0,
+      "right_wing": 8.0,
+      "fuselage_front": 10.0,
+      "fuselage_rear": 10.0,
+      "tail": 6.0
+    },
+    "dent": {
+      "nose": 3.0,
+      "left_wing": 6.0,
+      "right_wing": 6.0,
+      "fuselage_front": 8.0,
+      "fuselage_rear": 8.0,
+      "tail": 4.0
+    },
+    "paint_blister": {
+      "nose": 15.0,
+      "left_wing": 20.0,
+      "right_wing": 20.0,
+      "fuselage_front": 25.0,
+      "fuselage_rear": 25.0,
+      "tail": 18.0
+    },
+    "delamination": {
+      "nose": 3.0,
+      "left_wing": 5.0,
+      "right_wing": 5.0,
+      "fuselage_front": 7.0,
+      "fuselage_rear": 7.0,
+      "tail": 4.0
+    }
+  }
+}
