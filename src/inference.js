@@ -5,7 +5,7 @@ let session = null
 export async function loadModel() {
   if (session) return session
   try {
-    session = await ort.InferenceSession.create('/model/drishti.onnx', {
+    session = await ort.InferenceSession.create('/model/Drishti.onnx', {
       executionProviders: ['webgl', 'wasm'],
       graphOptimizationLevel: 'all'
     })

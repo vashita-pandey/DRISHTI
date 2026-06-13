@@ -1,20 +1,14 @@
+import { calculateSeverity } from './severity/severity.js'
 import toleranceData from './data/tolerance_737.json'
 
 export function scoreSeverity(x, y, w, h, imageWidth, imageHeight) {
-  const widthRatio = w / imageWidth
-  const heightRatio = h / imageHeight
-  const longerSide = Math.max(widthRatio, heightRatio)
-
-  // field of view covers ~200mm of surface at typical inspection distance
-  const estimatedMm = parseFloat((longerSide * 200).toFixed(2))
-
-  // severity: area-based, scaled to 0-100
-  const area = widthRatio * heightRatio
-  const severity = Math.min(100, Math.round(area * 20000))
-
+  const detection = {
+    bbox: { x, y, width: w, height: h }
+  }
+  const { estimatedLengthMM, severityScore } = calculateSeverity(detection, imageWidth, imageHeight)
   return {
-    crack_length_mm: estimatedMm,
-    severity_score: Math.max(1, severity)
+    crack_length_mm: estimatedLengthMM,
+    severity_score: severityScore
   }
 }
 
