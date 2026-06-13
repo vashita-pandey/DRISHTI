@@ -9,6 +9,9 @@ export default defineConfig({
     mkcert(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: {
+        enabled: true
+      },
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'DRISHTI — Aerospace Inspection',
@@ -23,14 +26,19 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,wasm}'],
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
             urlPattern: /\.onnx$/,
             handler: 'CacheFirst',
             options: {
               cacheName: 'onnx-model-cache',
-              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 * 30 }
+              expiration: {
+                maxEntries: 2,
+                maxAgeSeconds: 60 * 60 * 24 * 30
+              }
             }
           }
         ]
