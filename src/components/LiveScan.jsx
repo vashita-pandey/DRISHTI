@@ -4,22 +4,26 @@ import { scoreSeverity, getVerdict } from '../utils'
 import { db } from '../db/db'
 import { loadModel, runInference } from '../inference'
 
+const TAIL_NUMBERS = ['VT-TEST-001', 'VT-TEST-002', 'VT-TEST-003']
+
 export default function LiveScan() {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const [cameraActive, setCameraActive] = useState(false)
   const [selectedZone, setSelectedZone] = useState(null)
+  const [selectedTail, setSelectedTail] = useState('VT-TEST-001')
   const [error, setError] = useState(null)
-  const [detections, setDetections] = useState([])
+  const [currentDetection, setCurrentDetection] = useState(null)
   const [savedCount, setSavedCount] = useState(0)
+  const [lastSaved, setLastSaved] = useState(null)
   const [modelLoaded, setModelLoaded] = useState(false)
   const [modelLoading, setModelLoading] = useState(false)
   const selectedZoneRef = useRef(null)
+  const selectedTailRef = useRef('VT-TEST-001')
   const runningRef = useRef(false)
 
-  useEffect(() => {
-    selectedZoneRef.current = selectedZone
-  }, [selectedZone])
+  useEffect(() => { selectedZoneRef.current = selectedZone }, [selectedZone])
+  useEffect(() => { selectedTailRef.current = selectedTail }, [selectedTail])
 
   async function startCamera() {
     try {
@@ -29,14 +33,10 @@ export default function LiveScan() {
       videoRef.current.srcObject = stream
       setCameraActive(true)
       runningRef.current = true
-
-      // try loading model in background
       setModelLoading(true)
       const sess = await loadModel()
       setModelLoaded(!!sess)
       setModelLoading(false)
-
-      // start inference loop
       inferenceLoop()
     } catch (err) {
       setError('Camera access denied. Please allow camera permission and try again.')
@@ -51,7 +51,7 @@ export default function LiveScan() {
       videoRef.current.srcObject = null
     }
     setCameraActive(false)
-    setDetections([])
+    setCurrentDetection(null)
     clearCanvas()
   }
 
@@ -69,14 +69,13 @@ export default function LiveScan() {
     canvas.height = video.videoHeight
     const ctx = canvas.getContext('2d')
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-
     detectionList.forEach(det => {
-      const { x, y, w, h, label, severity, verdict } = det
+      const { x, y, w, h, label, crack_length_mm, verdict } = det
       const color = verdict === 'FAIL' ? '#ef4444' : '#22c55e'
       ctx.strokeStyle = color
       ctx.lineWidth = 3
       ctx.strokeRect(x, y, w, h)
-      const text = `${label} | ${det.crack_length_mm}mm | ${verdict}`
+      const text = `${label} | ${crack_length_mm}mm | ${verdict}`
       ctx.font = 'bold 15px Inter'
       const tw = ctx.measureText(text).width
       ctx.fillStyle = color
@@ -86,19 +85,29 @@ export default function LiveScan() {
     })
   }
 
-  async function saveDetection(detection) {
+  async function saveDetection() {
+    if (!currentDetection) return
+    if (!selectedZoneRef.current) {
+      alert('Please tap a zone on the aircraft diagram first.')
+      return
+    }
     try {
       await db.inspections.add({
-        tail_number: 'VT-TEST-001',
-        zone_id: selectedZoneRef.current || 'fuselage_front',
-        defect_type: detection.label,
-        severity_score: detection.severity,
-        crack_length_mm: detection.crack_length_mm,
-        verdict: detection.verdict,
+        tail_number: selectedTailRef.current,
+        zone_id: selectedZoneRef.current,
+        defect_type: currentDetection.label,
+        severity_score: currentDetection.severity,
+        crack_length_mm: currentDetection.crack_length_mm,
+        verdict: currentDetection.verdict,
         timestamp: new Date().toISOString(),
         inspector_id: 'INSPECTOR-01'
       })
       setSavedCount(prev => prev + 1)
+      setLastSaved({
+        ...currentDetection,
+        zone: selectedZoneRef.current,
+        tail: selectedTailRef.current
+      })
     } catch (err) {
       console.error('Save failed:', err)
     }
@@ -107,29 +116,20 @@ export default function LiveScan() {
   async function inferenceLoop() {
     while (runningRef.current) {
       const video = videoRef.current
-      if (!video || !video.videoWidth) {
-        await sleep(500)
-        continue
-      }
+      if (!video || !video.videoWidth) { await sleep(500); continue }
 
       let rawDetections = []
+      try { rawDetections = await runInference(video) } catch { rawDetections = [] }
 
-      // try real model first
-      try {
-        rawDetections = await runInference(video)
-      } catch {
-        rawDetections = []
-      }
-
-      // fallback to simulation if no model or no detections
       if (rawDetections.length === 0) {
+        const defectTypes = ['crack', 'corrosion', 'dent', 'paint_blister', 'delamination']
         rawDetections = [{
-          x: video.videoWidth * 0.3,
-          y: video.videoHeight * 0.3,
-          w: video.videoWidth * 0.15,
-          h: video.videoHeight * 0.08,
-          label: 'crack',
-          confidence: 0.91
+          x: video.videoWidth * 0.35,
+          y: video.videoHeight * 0.35,
+          w: video.videoWidth * 0.018,
+          h: video.videoHeight * 0.008,
+          label: defectTypes[Math.floor(Math.random() * defectTypes.length)],
+          confidence: 0.85 + Math.random() * 0.1
         }]
       }
 
@@ -138,83 +138,84 @@ export default function LiveScan() {
         const { crack_length_mm, severity_score } = scoreSeverity(
           det.x, det.y, det.w, det.h, video.videoWidth, video.videoHeight
         )
-        const verdict = getVerdict(det.label, zone, crack_length_mm)
-        return { ...det, crack_length_mm, severity: severity_score, verdict }
+        return { ...det, crack_length_mm, severity: severity_score, verdict: getVerdict(det.label, zone, crack_length_mm) }
       })
 
-      setDetections(processed)
+      const top = processed.reduce((a, b) => a.severity > b.severity ? a : b)
+      setCurrentDetection(top)
       drawBoxes(processed)
-
-      // save highest severity detection only
-      if (processed.length > 0) {
-        const top = processed.reduce((a, b) => a.severity > b.severity ? a : b)
-        await saveDetection(top)
-      }
-
       await sleep(2000)
     }
   }
 
-  function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
-  }
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
 
-  useEffect(() => {
-    return () => { runningRef.current = false; stopCamera() }
-  }, [])
+  useEffect(() => { return () => { runningRef.current = false; stopCamera() } }, [])
 
   return (
     <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+      {/* Tail number selector */}
+      {!cameraActive && (
+        <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
+          <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>SELECT AIRCRAFT</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {TAIL_NUMBERS.map(tail => (
+              <button key={tail} onClick={() => setSelectedTail(tail)} style={{
+                flex: 1, background: selectedTail === tail ? '#00c2ff' : '#1e2d40',
+                color: selectedTail === tail ? '#0a0f1a' : '#94a3b8',
+                border: 'none', borderRadius: 6, padding: '8px 4px',
+                fontSize: 11, fontWeight: selectedTail === tail ? 700 : 400, cursor: 'pointer'
+              }}>{tail}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Camera + canvas */}
       <div style={{ position: 'relative', background: '#111827', borderRadius: 8, overflow: 'hidden', border: '1px solid #1e2d40', aspectRatio: '16/9' }}>
-        <video
-          ref={videoRef} autoPlay playsInline muted
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraActive ? 'block' : 'none' }}
-        />
-        <canvas
-          ref={canvasRef}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-        />
+        <video ref={videoRef} autoPlay playsInline muted
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraActive ? 'block' : 'none' }} />
+        <canvas ref={canvasRef}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
         {!cameraActive && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
             <span style={{ fontSize: 40 }}>📷</span>
             <p style={{ color: '#64748b', fontSize: 13 }}>Camera not started</p>
           </div>
         )}
-
-        {/* Model status badge */}
+        {cameraActive && (
+          <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '3px 8px' }}>
+            <span style={{ fontSize: 11, color: '#00c2ff', fontWeight: 700 }}>{selectedTail}</span>
+          </div>
+        )}
         {cameraActive && (
           <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '3px 8px' }}>
             <span style={{ fontSize: 11, color: modelLoaded ? '#22c55e' : modelLoading ? '#f59e0b' : '#64748b' }}>
-              {modelLoaded ? '🟢 AI Model Active' : modelLoading ? '🟡 Loading model...' : '🔵 Simulation mode'}
+              {modelLoaded ? '🟢 AI Active' : modelLoading ? '🟡 Loading...' : '🔵 Simulation'}
             </span>
           </div>
         )}
       </div>
 
-      {/* Saved counter */}
-      {savedCount > 0 && (
-        <div style={{ background: '#0f2d1a', border: '1px solid #166534', borderRadius: 8, padding: '8px 14px', display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ color: '#86efac', fontSize: 13 }}>✓ Records saved to device</span>
-          <span style={{ color: '#86efac', fontSize: 13, fontWeight: 700 }}>{savedCount}</span>
+      {/* Current detection */}
+      {currentDetection && (
+        <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ color: '#94a3b8', fontSize: 13, textTransform: 'capitalize' }}>{currentDetection.label}</span>
+          <span style={{ color: '#94a3b8', fontSize: 13 }}>{currentDetection.crack_length_mm}mm | Sev {currentDetection.severity}/100</span>
+          <span style={{
+            background: currentDetection.verdict === 'FAIL' ? '#7f1d1d' : '#14532d',
+            color: currentDetection.verdict === 'FAIL' ? '#fca5a5' : '#86efac',
+            padding: '2px 10px', borderRadius: 4, fontSize: 12, fontWeight: 700
+          }}>{currentDetection.verdict}</span>
         </div>
       )}
 
-      {/* Detection cards */}
-      {detections.length > 0 && (
-        <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {detections.map((det, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: '#94a3b8', fontSize: 13, textTransform: 'capitalize' }}>{det.label}</span>
-              <span style={{ color: '#94a3b8', fontSize: 13 }}>{det.crack_length_mm}mm | Sev {det.severity}/100</span>
-              <span style={{
-                background: det.verdict === 'FAIL' ? '#7f1d1d' : '#14532d',
-                color: det.verdict === 'FAIL' ? '#fca5a5' : '#86efac',
-                padding: '2px 10px', borderRadius: 4, fontSize: 12, fontWeight: 700
-              }}>{det.verdict}</span>
-            </div>
-          ))}
+      {/* Last saved confirmation */}
+      {lastSaved && (
+        <div style={{ background: '#0f2d1a', border: '1px solid #166534', borderRadius: 8, padding: '8px 14px', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: '#86efac', fontSize: 12 }}>✓ Saved — {lastSaved.tail} · {lastSaved.zone?.replace(/_/g, ' ')}</span>
+          <span style={{ color: '#86efac', fontSize: 12, fontWeight: 700 }}>{savedCount} total</span>
         </div>
       )}
 
@@ -225,19 +226,26 @@ export default function LiveScan() {
         </div>
       )}
 
-      {/* Start / Stop */}
-      <button
-        onClick={cameraActive ? stopCamera : startCamera}
-        style={{
-          background: cameraActive ? '#7f1d1d' : '#00c2ff',
-          color: cameraActive ? '#fca5a5' : '#0a0f1a',
-          border: 'none', borderRadius: 8,
-          padding: '12px 0', fontSize: 15, fontWeight: 600,
-          cursor: 'pointer', width: '100%'
-        }}
-      >
+      {/* Buttons */}
+      <button onClick={cameraActive ? stopCamera : startCamera} style={{
+        background: cameraActive ? '#7f1d1d' : '#00c2ff',
+        color: cameraActive ? '#fca5a5' : '#0a0f1a',
+        border: 'none', borderRadius: 8, padding: '12px 0',
+        fontSize: 15, fontWeight: 600, cursor: 'pointer', width: '100%'
+      }}>
         {cameraActive ? '⏹ Stop Camera' : '▶ Start Camera'}
       </button>
+
+      {/* Manual save button — only show when camera active and defect detected */}
+      {cameraActive && currentDetection && (
+        <button onClick={saveDetection} style={{
+          background: '#0f2d1a', border: '2px solid #166534',
+          color: '#86efac', borderRadius: 8, padding: '12px 0',
+          fontSize: 15, fontWeight: 600, cursor: 'pointer', width: '100%'
+        }}>
+          💾 Save This Detection
+        </button>
+      )}
 
       {/* Zone selector */}
       {cameraActive && (
