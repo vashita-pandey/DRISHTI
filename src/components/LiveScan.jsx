@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import ZoneSelector from './ZoneSelector'
-import { scoreSeverity, getVerdict } from '../utils'
+import { scoreSeverity, getVerdict, getToleranceLimit } from '../utils'
 import { db } from '../db/db'
 import { loadModel, runInference } from '../inference'
 import AMMSearch from './AMMSearch'
@@ -92,26 +92,54 @@ export default function LiveScan() {
       alert('Please tap a zone on the aircraft diagram first.')
       return
     }
+
+    const zone = selectedZoneRef.current
+    const toleranceLimitMM = getToleranceLimit(currentDetection.label, zone)
+
     try {
       await db.inspections.add({
-        tail_number: selectedTailRef.current,
-        zone_id: selectedZoneRef.current,
-        defect_type: currentDetection.label,
-        severity_score: currentDetection.severity,
-        crack_length_mm: currentDetection.crack_length_mm,
+        tailNumber: selectedTailRef.current,
+        aircraftType: 'B737',
+        inspectionDate: new Date().toISOString(),
+        inspectorId: 'INSPECTOR-01',
+        zone: zone.replace('fuselage_front', 'fuselage').replace('fuselage_rear', 'fuselage'),
+        zoneId: zoneToId(zone),
+        defectType: currentDetection.label,
+        confidence: currentDetection.confidence || 0.91,
+        bbox: {
+          x: currentDetection.x,
+          y: currentDetection.y,
+          width: currentDetection.w,
+          height: currentDetection.h
+        },
+        estimatedLengthMM: currentDetection.crack_length_mm ?? null,
+        severityScore: currentDetection.severity,
+        toleranceLimitMM,
         verdict: currentDetection.verdict,
-        timestamp: new Date().toISOString(),
-        inspector_id: 'INSPECTOR-01'
+        syncStatus: 'pending',
+        createdAt: new Date().toISOString()
       })
       setSavedCount(prev => prev + 1)
       setLastSaved({
         ...currentDetection,
-        zone: selectedZoneRef.current,
+        zone,
         tail: selectedTailRef.current
       })
     } catch (err) {
       console.error('Save failed:', err)
     }
+  }
+
+  function zoneToId(zoneId) {
+    const map = {
+      'nose': 'ZONE_01',
+      'fuselage_front': 'ZONE_02',
+      'fuselage_rear': 'ZONE_03',
+      'left_wing': 'ZONE_04',
+      'right_wing': 'ZONE_05',
+      'tail': 'ZONE_06'
+    }
+    return map[zoneId] || 'ZONE_01'
   }
 
   async function inferenceLoop() {

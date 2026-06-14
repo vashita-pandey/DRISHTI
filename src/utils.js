@@ -12,12 +12,16 @@ export function scoreSeverity(x, y, w, h, imageWidth, imageHeight) {
   }
 }
 
-export function getVerdict(defectType, zoneId, crackLengthMm) {
+export function getToleranceLimit(defectType, zoneId) {
   try {
-    const limit = toleranceData.defect_tolerances[defectType]?.[zoneId]
-    if (limit === undefined) return 'PASS'
-    return crackLengthMm >= limit ? 'FAIL' : 'PASS'
+    return toleranceData.defect_tolerances[defectType]?.[zoneId] ?? null
   } catch {
-    return 'PASS'
+    return null
   }
+}
+
+export function getVerdict(defectType, zoneId, crackLengthMm) {
+  const limit = getToleranceLimit(defectType, zoneId)
+  if (limit === null) return 'PASS'
+  return crackLengthMm >= limit ? 'GROUND' : 'PASS'
 }
