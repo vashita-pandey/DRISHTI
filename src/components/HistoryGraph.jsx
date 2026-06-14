@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../db/db'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, ResponsiveContainer, Legend
+  Tooltip, ReferenceLine, ResponsiveContainer
 } from 'recharts'
 
 export default function HistoryGraph() {
@@ -11,17 +11,15 @@ export default function HistoryGraph() {
   const [tailNumbers, setTailNumbers] = useState([])
   const [chartData, setChartData] = useState([])
   const [projection, setProjection] = useState(null)
-  const TOLERANCE_LIMIT = 4.0 // mm — Boeing 737 crack tolerance
+  const TOLERANCE_LIMIT = 4.0
 
-  // Paris' Law constants for Boeing 737 aluminium 2024-T3
   const C = 1.35e-10
   const M = 3.0
 
   function parisLawProject(inspections) {
     if (inspections.length < 2) return null
-
     const last = inspections[inspections.length - 1]
-    let a = last.crack_length_mm
+    let a = last.estimatedLengthMM || 0
     let cycles = 0
     const maxCycles = 1e7
     const stepSize = 1000
@@ -35,51 +33,46 @@ export default function HistoryGraph() {
 
     const hoursRemaining = Math.round(cycles / 3600)
     const inspectionsRemaining = Math.max(0, Math.floor(hoursRemaining / 500))
-
     return { hoursRemaining, inspectionsRemaining, willBreach: a >= TOLERANCE_LIMIT }
   }
 
-  // load all records from Dexie
   useEffect(() => {
     async function loadRecords() {
       const all = await db.inspections.toArray()
       setRecords(all)
 
-      // get unique tail numbers
-      const tails = [...new Set(all.map(r => r.tail_number))]
+      const tails = [...new Set(all.map(r => r.tailNumber).filter(Boolean))]
       setTailNumbers(tails)
       if (tails.length > 0 && !tails.includes(selectedTail)) {
         setSelectedTail(tails[0])
       }
     }
     loadRecords()
-
-    // refresh every 3 seconds to pick up new LiveScan records
     const interval = setInterval(loadRecords, 3000)
     return () => clearInterval(interval)
   }, [])
 
-  // build chart data when records or selected tail changes
   useEffect(() => {
     const filtered = records
-      .filter(r => r.tail_number === selectedTail && r.defect_type === 'crack')
-      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+      .filter(r => r.tailNumber === selectedTail && r.defectType === 'crack')
+      .sort((a, b) => new Date(a.inspectionDate) - new Date(b.inspectionDate))
       .map((r, i) => ({
         inspection: `#${i + 1}`,
-        crack_length_mm: r.crack_length_mm,
-        timestamp: new Date(r.timestamp).toLocaleTimeString()
+        estimatedLengthMM: r.estimatedLengthMM,
+        timestamp: new Date(r.inspectionDate).toLocaleTimeString()
       }))
 
     setChartData(filtered)
-    const proj = parisLawProject(filtered.map(d => ({ crack_length_mm: d.crack_length_mm })))
+    const proj = parisLawProject(filtered)
     setProjection(proj)
   }, [records, selectedTail])
 
-  // zone heatmap data
+  // zone heatmap — using zone field
   const zoneData = (() => {
     const counts = {}
     records.forEach(r => {
-      counts[r.zone_id] = (counts[r.zone_id] || 0) + 1
+      const z = r.zone || 'unknown'
+      counts[z] = (counts[z] || 0) + 1
     })
     return counts
   })()
@@ -97,11 +90,11 @@ export default function HistoryGraph() {
 
   const zones = [
     { id: 'nose', label: 'Nose', x: 10, y: 80, w: 60, h: 60 },
-    { id: 'fuselage_front', label: 'Fuse Front', x: 70, y: 70, w: 90, h: 80 },
-    { id: 'fuselage_rear', label: 'Fuse Rear', x: 160, y: 70, w: 90, h: 80 },
-    { id: 'left_wing', label: 'Left Wing', x: 90, y: 10, w: 100, h: 55 },
-    { id: 'right_wing', label: 'Right Wing', x: 90, y: 155, w: 100, h: 55 },
+    { id: 'fuselage', label: 'Fuselage', x: 70, y: 70, w: 120, h: 80 },
+    { id: 'wing', label: 'Wings', x: 90, y: 10, w: 100, h: 55 },
     { id: 'tail', label: 'Tail', x: 250, y: 75, w: 70, h: 70 },
+    { id: 'engine', label: 'Engine', x: 90, y: 155, w: 100, h: 40 },
+    { id: 'landing_gear', label: 'Landing Gear', x: 160, y: 155, w: 80, h: 40 },
   ]
 
   return (
@@ -113,27 +106,23 @@ export default function HistoryGraph() {
         <span style={{ color: '#64748b', fontSize: 13 }}>{records.length} total records</span>
       </div>
 
-      {/* Tail number selector */}
+      {/* Tail selector */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {tailNumbers.map(tail => (
-          <button
-            key={tail}
-            onClick={() => setSelectedTail(tail)}
-            style={{
-              background: selectedTail === tail ? '#00c2ff' : '#1e2d40',
-              color: selectedTail === tail ? '#0a0f1a' : '#94a3b8',
-              border: 'none', borderRadius: 6,
-              padding: '6px 14px', fontSize: 13,
-              fontWeight: selectedTail === tail ? 700 : 400,
-              cursor: 'pointer'
-            }}
-          >
-            {tail}
-          </button>
+        {tailNumbers.length === 0 ? (
+          <p style={{ color: '#475569', fontSize: 13 }}>No records yet — save a detection from LiveScan first.</p>
+        ) : tailNumbers.map(tail => (
+          <button key={tail} onClick={() => setSelectedTail(tail)} style={{
+            background: selectedTail === tail ? '#00c2ff' : '#1e2d40',
+            color: selectedTail === tail ? '#0a0f1a' : '#94a3b8',
+            border: 'none', borderRadius: 6,
+            padding: '6px 14px', fontSize: 13,
+            fontWeight: selectedTail === tail ? 700 : 400,
+            cursor: 'pointer'
+          }}>{tail}</button>
         ))}
       </div>
 
-      {/* Paris' Law projection verdict */}
+      {/* Paris' Law projection */}
       {projection && (
         <div style={{
           background: projection.willBreach ? '#2d1a1a' : '#0f2d1a',
@@ -146,7 +135,7 @@ export default function HistoryGraph() {
               : '✓ Crack within safe growth limits'}
           </p>
           <p style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
-            Paris' Law projection — Boeing 737 Al 2024-T3 | C=1.35×10⁻¹⁰ | m=3.0
+            Paris' Law — Boeing 737 Al 2024-T3 | C=1.35×10⁻¹⁰ | m=3.0
           </p>
         </div>
       )}
@@ -167,8 +156,10 @@ export default function HistoryGraph() {
                 labelStyle={{ color: '#94a3b8' }}
                 itemStyle={{ color: '#00c2ff' }}
               />
-              <ReferenceLine y={TOLERANCE_LIMIT} stroke="#ef4444" strokeDasharray="4 4" label={{ value: 'Tolerance limit', fill: '#ef4444', fontSize: 11 }} />
-              <Line type="monotone" dataKey="crack_length_mm" stroke="#00c2ff" strokeWidth={2} dot={{ fill: '#00c2ff', r: 4 }} name="Crack length (mm)" />
+              <ReferenceLine y={TOLERANCE_LIMIT} stroke="#ef4444" strokeDasharray="4 4"
+                label={{ value: 'Tolerance limit', fill: '#ef4444', fontSize: 11 }} />
+              <Line type="monotone" dataKey="estimatedLengthMM" stroke="#00c2ff"
+                strokeWidth={2} dot={{ fill: '#00c2ff', r: 4 }} name="Crack length (mm)" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -184,19 +175,15 @@ export default function HistoryGraph() {
         <svg viewBox="0 0 340 220" style={{ width: '100%' }}>
           {zones.map(zone => (
             <g key={zone.id}>
-              <rect
-                x={zone.x} y={zone.y} width={zone.w} height={zone.h}
-                rx={6}
-                fill={zoneColor(zone.id)}
-                stroke="#334155"
-                strokeWidth={1}
-              />
-              <text x={zone.x + zone.w / 2} y={zone.y + zone.h / 2 - 4} textAnchor="middle" fill="#e2e8f0" fontSize={9}>{zone.label}</text>
-              <text x={zone.x + zone.w / 2} y={zone.y + zone.h / 2 + 10} textAnchor="middle" fill="#94a3b8" fontSize={9}>{zoneData[zone.id] || 0} defects</text>
+              <rect x={zone.x} y={zone.y} width={zone.w} height={zone.h}
+                rx={6} fill={zoneColor(zone.id)} stroke="#334155" strokeWidth={1} />
+              <text x={zone.x + zone.w / 2} y={zone.y + zone.h / 2 - 4}
+                textAnchor="middle" fill="#e2e8f0" fontSize={9}>{zone.label}</text>
+              <text x={zone.x + zone.w / 2} y={zone.y + zone.h / 2 + 10}
+                textAnchor="middle" fill="#94a3b8" fontSize={9}>{zoneData[zone.id] || 0} defects</text>
             </g>
           ))}
         </svg>
-        {/* Legend */}
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8 }}>
           {[['#1e2d40', 'None'], ['#854d0e', 'Low'], ['#ca8a04', 'Medium'], ['#ef4444', 'High']].map(([color, label]) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
