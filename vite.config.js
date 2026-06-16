@@ -26,7 +26,8 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,wasm}'],
+        maximumFileSizeToCacheInBytes: 30 * 1024 * 1024, // 30MB limit
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
@@ -37,6 +38,17 @@ export default defineConfig({
               cacheName: 'onnx-model-cache',
               expiration: {
                 maxEntries: 2,
+                maxAgeSeconds: 60 * 60 * 24 * 30
+              }
+            }
+          },
+          {
+            urlPattern: /\.wasm$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'wasm-cache',
+              expiration: {
+                maxEntries: 5,
                 maxAgeSeconds: 60 * 60 * 24 * 30
               }
             }
