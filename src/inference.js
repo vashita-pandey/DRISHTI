@@ -1,12 +1,11 @@
 import * as ort from 'onnxruntime-web'
 
 let session = null
-const MODEL_TIMEOUT_MS = 60000 // 30 seconds — if not loaded, fall back to simulation
+const MODEL_TIMEOUT_MS = 60000
 
 export async function loadModel() {
   if (session) return session
   try {
-    // force WASM only — more reliable on mobile than WebGL
     ort.env.wasm.numThreads = 1
     ort.env.wasm.simd = true
 
@@ -33,27 +32,27 @@ export async function runInference(videoElement) {
 
   try {
     const canvas = document.createElement('canvas')
-    canvas.width = 416
-    canvas.height = 416
+    canvas.width = 640
+    canvas.height = 640
     const ctx = canvas.getContext('2d')
-    ctx.drawImage(videoElement, 0, 0, 416, 416)
+    ctx.drawImage(videoElement, 0, 0, 640, 640)
 
-    const imageData = ctx.getImageData(0, 0, 416, 416)
+    const imageData = ctx.getImageData(0, 0, 640, 640)
     const { data } = imageData
 
-    const float32 = new Float32Array(1 * 3 * 416 * 416)
-    for (let i = 0; i < 416 * 416; i++) {
+    const float32 = new Float32Array(1 * 3 * 640 * 640)
+    for (let i = 0; i < 640 * 640; i++) {
       float32[i] = data[i * 4] / 255.0
-      float32[i + 416 * 416] = data[i * 4 + 1] / 255.0
-      float32[i + 416 * 416 * 2] = data[i * 4 + 2] / 255.0
+      float32[i + 640 * 640] = data[i * 4 + 1] / 255.0
+      float32[i + 640 * 640 * 2] = data[i * 4 + 2] / 255.0
     }
 
-    const tensor = new ort.Tensor('float32', float32, [1, 3, 416, 416])
+    const tensor = new ort.Tensor('float32', float32, [1, 3, 640, 640])
     const feeds = { images: tensor }
     const results = await session.run(feeds)
 
     const output = results[Object.keys(results)[0]].data
-    const numDetections = 5460
+    const numDetections = 8400
     const CLASSES = ['crack', 'corrosion', 'dent', 'paint_blister', 'delamination']
     const CONF_THRESHOLD = 0.4
     const detections = []

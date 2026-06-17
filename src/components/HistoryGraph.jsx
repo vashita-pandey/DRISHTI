@@ -2,13 +2,22 @@ import { useEffect, useState } from 'react'
 import { db } from '../db/db'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, ResponsiveContainer
+  Tooltip, ReferenceLine, ResponsiveContainer, Legend
 } from 'recharts'
+
+const ALL_TAILS = ['VT-TEST-001', 'VT-TEST-002', 'VT-TEST-003']
+
+const DEFECT_COLORS = {
+  crack: '#00c2ff',
+  corrosion: '#f59e0b',
+  dent: '#a78bfa',
+  paint_blister: '#34d399',
+  delamination: '#f87171'
+}
 
 export default function HistoryGraph() {
   const [records, setRecords] = useState([])
   const [selectedTail, setSelectedTail] = useState('VT-TEST-001')
-  const [tailNumbers, setTailNumbers] = useState([])
   const [chartData, setChartData] = useState([])
   const [projection, setProjection] = useState(null)
   const TOLERANCE_LIMIT = 4.0
@@ -18,7 +27,10 @@ export default function HistoryGraph() {
 
   function parisLawProject(inspections) {
     if (inspections.length < 2) return null
-    const last = inspections[inspections.length - 1]
+    const crackOnly = inspections.filter(r => r.defectType === 'crack')
+    if (crackOnly.length < 2) return null
+
+    const last = crackOnly[crackOnly.length - 1]
     let a = last.estimatedLengthMM || 0
     let cycles = 0
     const maxCycles = 1e7
@@ -40,12 +52,6 @@ export default function HistoryGraph() {
     async function loadRecords() {
       const all = await db.inspections.toArray()
       setRecords(all)
-
-      const tails = [...new Set(all.map(r => r.tailNumber).filter(Boolean))]
-      setTailNumbers(tails)
-      if (tails.length > 0 && !tails.includes(selectedTail)) {
-        setSelectedTail(tails[0])
-      }
     }
     loadRecords()
     const interval = setInterval(loadRecords, 3000)
@@ -54,26 +60,35 @@ export default function HistoryGraph() {
 
   useEffect(() => {
     const filtered = records
-      .filter(r => r.tailNumber === selectedTail && r.defectType === 'crack')
+      .filter(r => r.tailNumber === selectedTail)
       .sort((a, b) => new Date(a.inspectionDate) - new Date(b.inspectionDate))
       .map((r, i) => ({
         inspection: `#${i + 1}`,
         estimatedLengthMM: r.estimatedLengthMM,
+        defectType: r.defectType,
+        severityScore: r.severityScore,
+        verdict: r.verdict,
         timestamp: new Date(r.inspectionDate).toLocaleTimeString()
       }))
 
     setChartData(filtered)
-    const proj = parisLawProject(filtered)
-    setProjection(proj)
+
+    const crackRecords = filtered.filter(r => r.defectType === 'crack')
+    if (crackRecords.length >= 2) {
+      setProjection(parisLawProject(filtered))
+    } else {
+      setProjection(null)
+    }
   }, [records, selectedTail])
 
-  // zone heatmap — using zone field
   const zoneData = (() => {
     const counts = {}
-    records.forEach(r => {
-      const z = r.zone || 'unknown'
-      counts[z] = (counts[z] || 0) + 1
-    })
+    records
+      .filter(r => r.tailNumber === selectedTail)
+      .forEach(r => {
+        const z = r.zone || 'unknown'
+        counts[z] = (counts[z] || 0) + 1
+      })
     return counts
   })()
 
@@ -97,6 +112,13 @@ export default function HistoryGraph() {
     { id: 'landing_gear', label: 'Landing Gear', x: 160, y: 155, w: 80, h: 40 },
   ]
 
+  const tailRecordCount = (tail) => records.filter(r => r.tailNumber === tail).length
+
+  // summary stats for selected tail
+  const tailRecords = records.filter(r => r.tailNumber === selectedTail)
+  const groundCount = tailRecords.filter(r => r.verdict === 'GROUND').length
+  const passCount = tailRecords.filter(r => r.verdict === 'PASS').length
+
   return (
     <div style={{ width: '100%', maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -108,19 +130,39 @@ export default function HistoryGraph() {
 
       {/* Tail selector */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {tailNumbers.length === 0 ? (
-          <p style={{ color: '#475569', fontSize: 13 }}>No records yet — save a detection from LiveScan first.</p>
-        ) : tailNumbers.map(tail => (
+        {ALL_TAILS.map(tail => (
           <button key={tail} onClick={() => setSelectedTail(tail)} style={{
             background: selectedTail === tail ? '#00c2ff' : '#1e2d40',
             color: selectedTail === tail ? '#0a0f1a' : '#94a3b8',
             border: 'none', borderRadius: 6,
-            padding: '6px 14px', fontSize: 13,
+            padding: '8px 14px', fontSize: 12,
             fontWeight: selectedTail === tail ? 700 : 400,
-            cursor: 'pointer'
-          }}>{tail}</button>
+            cursor: 'pointer',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2
+          }}>
+            <span>{tail}</span>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>{tailRecordCount(tail)} records</span>
+          </button>
         ))}
       </div>
+
+      {/* Summary stats */}
+      {tailRecords.length > 0 && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ flex: 1, background: '#0f2d1a', border: '1px solid #166534', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+            <div style={{ color: '#86efac', fontSize: 20, fontWeight: 700 }}>{passCount}</div>
+            <div style={{ color: '#64748b', fontSize: 11 }}>PASS</div>
+          </div>
+          <div style={{ flex: 1, background: '#2d1a1a', border: '1px solid #7f1d1d', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+            <div style={{ color: '#fca5a5', fontSize: 20, fontWeight: 700 }}>{groundCount}</div>
+            <div style={{ color: '#64748b', fontSize: 11 }}>GROUND</div>
+          </div>
+          <div style={{ flex: 1, background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
+            <div style={{ color: '#e2e8f0', fontSize: 20, fontWeight: 700 }}>{tailRecords.length}</div>
+            <div style={{ color: '#64748b', fontSize: 11 }}>TOTAL</div>
+          </div>
+        </div>
+      )}
 
       {/* Paris' Law projection */}
       {projection && (
@@ -140,11 +182,11 @@ export default function HistoryGraph() {
         </div>
       )}
 
-      {/* Crack growth chart */}
+      {/* Defect length chart — all defect types */}
       {chartData.length > 0 ? (
         <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '16px' }}>
           <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>
-            Crack length over inspections — {selectedTail}
+            Defect size over inspections — {selectedTail}
           </p>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={chartData}>
@@ -154,24 +196,50 @@ export default function HistoryGraph() {
               <Tooltip
                 contentStyle={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 6 }}
                 labelStyle={{ color: '#94a3b8' }}
-                itemStyle={{ color: '#00c2ff' }}
+                formatter={(value, name, props) => [
+                  `${value}mm`,
+                  props.payload.defectType
+                ]}
               />
               <ReferenceLine y={TOLERANCE_LIMIT} stroke="#ef4444" strokeDasharray="4 4"
-                label={{ value: 'Tolerance limit', fill: '#ef4444', fontSize: 11 }} />
-              <Line type="monotone" dataKey="estimatedLengthMM" stroke="#00c2ff"
-                strokeWidth={2} dot={{ fill: '#00c2ff', r: 4 }} name="Crack length (mm)" />
+                label={{ value: 'Crack tolerance limit', fill: '#ef4444', fontSize: 10 }} />
+              <Line
+                type="monotone"
+                dataKey="estimatedLengthMM"
+                stroke="#00c2ff"
+                strokeWidth={2}
+                dot={(props) => {
+                  const { cx, cy, payload } = props
+                  const color = DEFECT_COLORS[payload.defectType] || '#00c2ff'
+                  return <circle key={`dot-${props.index}`} cx={cx} cy={cy} r={5} fill={color} stroke={color} />
+                }}
+                name="Size (mm)"
+              />
             </LineChart>
           </ResponsiveContainer>
+
+          {/* Defect type legend */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10, justifyContent: 'center' }}>
+            {Object.entries(DEFECT_COLORS).map(([type, color]) => (
+              <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
+                <span style={{ color: '#64748b', fontSize: 11, textTransform: 'capitalize' }}>{type.replace('_', ' ')}</span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '32px', textAlign: 'center' }}>
-          <p style={{ color: '#64748b', fontSize: 13 }}>No crack records yet. Start LiveScan to populate this chart.</p>
+          <p style={{ color: '#64748b', fontSize: 13 }}>No records for {selectedTail} yet.</p>
+          <p style={{ color: '#475569', fontSize: 12, marginTop: 6 }}>Go to LiveScan, select this aircraft, and save a detection.</p>
         </div>
       )}
 
       {/* Fleet heatmap */}
       <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '16px' }}>
-        <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>Fleet heatmap — defect frequency by zone</p>
+        <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>
+          Defect frequency by zone — {selectedTail}
+        </p>
         <svg viewBox="0 0 340 220" style={{ width: '100%' }}>
           {zones.map(zone => (
             <g key={zone.id}>

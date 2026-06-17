@@ -78,7 +78,7 @@ define(['./workbox-25613826'], (function (workbox) { 'use strict';
    */
   workbox.precacheAndRoute([{
     "url": "index.html",
-    "revision": "0.dp6rf2npnas"
+    "revision": "0.me69nb56tj4"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
@@ -89,6 +89,13 @@ define(['./workbox-25613826'], (function (workbox) { 'use strict';
     "cacheName": "onnx-model-cache",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 2,
+      maxAgeSeconds: 2592000
+    })]
+  }), 'GET');
+  workbox.registerRoute(/\.wasm$/, new workbox.CacheFirst({
+    "cacheName": "wasm-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 5,
       maxAgeSeconds: 2592000
     })]
   }), 'GET');
