@@ -13,6 +13,7 @@ export default function LiveScan() {
   const [cameraActive, setCameraActive] = useState(false)
   const [selectedZone, setSelectedZone] = useState(null)
   const [selectedTail, setSelectedTail] = useState('VT-TEST-001')
+  const [inspectorId, setInspectorId] = useState('')
   const [error, setError] = useState(null)
   const [currentDetection, setCurrentDetection] = useState(null)
   const [savedCount, setSavedCount] = useState(0)
@@ -21,10 +22,12 @@ export default function LiveScan() {
   const [modelLoading, setModelLoading] = useState(false)
   const selectedZoneRef = useRef(null)
   const selectedTailRef = useRef('VT-TEST-001')
+  const inspectorIdRef = useRef('')
   const runningRef = useRef(false)
 
   useEffect(() => { selectedZoneRef.current = selectedZone }, [selectedZone])
   useEffect(() => { selectedTailRef.current = selectedTail }, [selectedTail])
+  useEffect(() => { inspectorIdRef.current = inspectorId }, [inspectorId])
 
   async function startCamera() {
     try {
@@ -72,7 +75,7 @@ export default function LiveScan() {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     detectionList.forEach(det => {
       const { x, y, w, h, label, crack_length_mm, verdict } = det
-      const color = verdict === 'FAIL' ? '#ef4444' : '#22c55e'
+      const color = verdict === 'GROUND' ? '#ef4444' : '#22c55e'
       ctx.strokeStyle = color
       ctx.lineWidth = 3
       ctx.strokeRect(x, y, w, h)
@@ -84,6 +87,18 @@ export default function LiveScan() {
       ctx.fillStyle = '#000'
       ctx.fillText(text, x + 6, y - 8)
     })
+  }
+
+  function zoneToId(zoneId) {
+    const map = {
+      'nose': 'ZONE_01',
+      'fuselage_front': 'ZONE_02',
+      'fuselage_rear': 'ZONE_03',
+      'left_wing': 'ZONE_04',
+      'right_wing': 'ZONE_05',
+      'tail': 'ZONE_06'
+    }
+    return map[zoneId] || 'ZONE_01'
   }
 
   async function saveDetection() {
@@ -101,7 +116,7 @@ export default function LiveScan() {
         tailNumber: selectedTailRef.current,
         aircraftType: 'B737',
         inspectionDate: new Date().toISOString(),
-        inspectorId: 'INSPECTOR-01',
+        inspectorId: inspectorIdRef.current || 'INSPECTOR-01',
         zone: zone.replace('fuselage_front', 'fuselage').replace('fuselage_rear', 'fuselage'),
         zoneId: zoneToId(zone),
         defectType: currentDetection.label,
@@ -130,18 +145,6 @@ export default function LiveScan() {
     }
   }
 
-  function zoneToId(zoneId) {
-    const map = {
-      'nose': 'ZONE_01',
-      'fuselage_front': 'ZONE_02',
-      'fuselage_rear': 'ZONE_03',
-      'left_wing': 'ZONE_04',
-      'right_wing': 'ZONE_05',
-      'tail': 'ZONE_06'
-    }
-    return map[zoneId] || 'ZONE_01'
-  }
-
   async function inferenceLoop() {
     while (runningRef.current) {
       const video = videoRef.current
@@ -167,7 +170,12 @@ export default function LiveScan() {
         const { crack_length_mm, severity_score } = scoreSeverity(
           det.x, det.y, det.w, det.h, video.videoWidth, video.videoHeight
         )
-        return { ...det, crack_length_mm, severity: severity_score, verdict: getVerdict(det.label, zone, crack_length_mm) }
+        return {
+          ...det,
+          crack_length_mm,
+          severity: severity_score,
+          verdict: getVerdict(det.label, zone, crack_length_mm)
+        }
       })
 
       const top = processed.reduce((a, b) => a.severity > b.severity ? a : b)
@@ -184,20 +192,43 @@ export default function LiveScan() {
   return (
     <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* Tail number selector */}
+      {/* Pre-inspection setup */}
       {!cameraActive && (
-        <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
-          <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>SELECT AIRCRAFT</p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {TAIL_NUMBERS.map(tail => (
-              <button key={tail} onClick={() => setSelectedTail(tail)} style={{
-                flex: 1, background: selectedTail === tail ? '#00c2ff' : '#1e2d40',
-                color: selectedTail === tail ? '#0a0f1a' : '#94a3b8',
-                border: 'none', borderRadius: 6, padding: '8px 4px',
-                fontSize: 11, fontWeight: selectedTail === tail ? 700 : 400, cursor: 'pointer'
-              }}>{tail}</button>
-            ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {/* Inspector ID */}
+          <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
+            <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>INSPECTOR ID</p>
+            <input
+              type="text"
+              value={inspectorId}
+              onChange={e => setInspectorId(e.target.value)}
+              placeholder="Enter your name or ID"
+              style={{
+                width: '100%', background: '#0a0f1a',
+                border: '1px solid #1e2d40', borderRadius: 6,
+                padding: '10px 12px', color: '#e2e8f0',
+                fontSize: 14, outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
           </div>
+
+          {/* Tail number selector */}
+          <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
+            <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>SELECT AIRCRAFT</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {TAIL_NUMBERS.map(tail => (
+                <button key={tail} onClick={() => setSelectedTail(tail)} style={{
+                  flex: 1, background: selectedTail === tail ? '#00c2ff' : '#1e2d40',
+                  color: selectedTail === tail ? '#0a0f1a' : '#94a3b8',
+                  border: 'none', borderRadius: 6, padding: '8px 4px',
+                  fontSize: 11, fontWeight: selectedTail === tail ? 700 : 400, cursor: 'pointer'
+                }}>{tail}</button>
+              ))}
+            </div>
+          </div>
+
         </div>
       )}
 
@@ -215,7 +246,9 @@ export default function LiveScan() {
         )}
         {cameraActive && (
           <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '3px 8px' }}>
-            <span style={{ fontSize: 11, color: '#00c2ff', fontWeight: 700 }}>{selectedTail}</span>
+            <span style={{ fontSize: 11, color: '#00c2ff', fontWeight: 700 }}>
+              {selectedTail} {inspectorIdRef.current ? `· ${inspectorIdRef.current}` : ''}
+            </span>
           </div>
         )}
         {cameraActive && (
@@ -233,8 +266,8 @@ export default function LiveScan() {
           <span style={{ color: '#94a3b8', fontSize: 13, textTransform: 'capitalize' }}>{currentDetection.label}</span>
           <span style={{ color: '#94a3b8', fontSize: 13 }}>{currentDetection.crack_length_mm}mm | Sev {currentDetection.severity}/100</span>
           <span style={{
-            background: currentDetection.verdict === 'FAIL' ? '#7f1d1d' : '#14532d',
-            color: currentDetection.verdict === 'FAIL' ? '#fca5a5' : '#86efac',
+            background: currentDetection.verdict === 'GROUND' ? '#7f1d1d' : '#14532d',
+            color: currentDetection.verdict === 'GROUND' ? '#fca5a5' : '#86efac',
             padding: '2px 10px', borderRadius: 4, fontSize: 12, fontWeight: 700
           }}>{currentDetection.verdict}</span>
         </div>
@@ -255,7 +288,7 @@ export default function LiveScan() {
         </div>
       )}
 
-      {/* Buttons */}
+      {/* Start / Stop */}
       <button onClick={cameraActive ? stopCamera : startCamera} style={{
         background: cameraActive ? '#7f1d1d' : '#00c2ff',
         color: cameraActive ? '#fca5a5' : '#0a0f1a',
@@ -265,7 +298,7 @@ export default function LiveScan() {
         {cameraActive ? '⏹ Stop Camera' : '▶ Start Camera'}
       </button>
 
-      {/* Manual save button — only show when camera active and defect detected */}
+      {/* Manual save */}
       {cameraActive && currentDetection && (
         <button onClick={saveDetection} style={{
           background: '#0f2d1a', border: '2px solid #166534',
@@ -280,15 +313,12 @@ export default function LiveScan() {
       {cameraActive && (
         <ZoneSelector selectedZone={selectedZone} onZoneSelect={setSelectedZone} />
       )}
+
       {/* AMM Repair Guidance */}
       {currentDetection && (
-        <AMMSearch
-          defectType={currentDetection.label}
-          zone={selectedZone}
-        />
+        <AMMSearch defectType={currentDetection.label} zone={selectedZone} />
       )}
 
     </div>
   )
 }
-

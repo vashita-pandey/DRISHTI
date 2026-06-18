@@ -25,6 +25,28 @@ export default function HistoryGraph() {
   const C = 1.35e-10
   const M = 3.0
 
+  function exportReport() {
+    const tailRecordsToExport = records.filter(r => r.tailNumber === selectedTail)
+    const report = {
+      exported_at: new Date().toISOString(),
+      aircraft: selectedTail,
+      aircraft_type: 'B737',
+      total_inspections: tailRecordsToExport.length,
+      ground_count: tailRecordsToExport.filter(r => r.verdict === 'GROUND').length,
+      pass_count: tailRecordsToExport.filter(r => r.verdict === 'PASS').length,
+      inspectors: [...new Set(tailRecordsToExport.map(r => r.inspectorId))],
+      records: tailRecordsToExport
+    }
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `DRISHTI_${selectedTail}_${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function parisLawProject(inspections) {
     if (inspections.length < 2) return null
     const crackOnly = inspections.filter(r => r.defectType === 'crack')
@@ -120,11 +142,26 @@ export default function HistoryGraph() {
   return (
     <div style={{ width: '100%', maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+      {/* Header + export */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ fontSize: 18, fontWeight: 600, color: '#e2e8f0' }}>HistoryGraph</h2>
-        <span style={{ color: '#64748b', fontSize: 13 }}>{records.length} total records</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ color: '#64748b', fontSize: 13 }}>{records.length} total</span>
+          <button
+            onClick={exportReport}
+            style={{
+              background: '#1e2d40', color: '#94a3b8',
+              border: '1px solid #334155', borderRadius: 6,
+              padding: '6px 12px', fontSize: 12,
+              cursor: 'pointer', fontWeight: 500
+            }}
+          >
+            ⬇ Export Report
+          </button>
+        </div>
       </div>
 
+      {/* Tail selector */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {ALL_TAILS.map(tail => (
           <button key={tail} onClick={() => setSelectedTail(tail)} style={{
@@ -142,6 +179,7 @@ export default function HistoryGraph() {
         ))}
       </div>
 
+      {/* Summary stats */}
       {tailRecords.length > 0 && (
         <div style={{ display: 'flex', gap: 10 }}>
           <div style={{ flex: 1, background: '#0f2d1a', border: '1px solid #166534', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
@@ -159,6 +197,7 @@ export default function HistoryGraph() {
         </div>
       )}
 
+      {/* Paris' Law projection */}
       {projection && (
         <div style={{
           background: projection.willBreach ? '#2d1a1a' : '#0f2d1a',
@@ -176,6 +215,7 @@ export default function HistoryGraph() {
         </div>
       )}
 
+      {/* Chart */}
       {chartData.length > 0 ? (
         <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '16px' }}>
           <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>
@@ -223,6 +263,7 @@ export default function HistoryGraph() {
         </div>
       )}
 
+      {/* Fleet heatmap */}
       <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '16px' }}>
         <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>
           Defect frequency by zone — {selectedTail}
