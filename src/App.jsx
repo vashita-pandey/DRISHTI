@@ -11,7 +11,6 @@ export default function App() {
       <h1 style={{ marginBottom: 4 }}>DRISHTI</h1>
       <p style={{ marginBottom: 20 }}>Edge AI for Aerospace Inspection</p>
 
-      {/* Tab switcher */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
         {['livescan', 'history'].map(tab => (
           <button
@@ -31,7 +30,9 @@ export default function App() {
         ))}
       </div>
 
-      {activeTab === 'livescan' ? <LiveScan /> : <HistoryGraph />}
+      {activeTab === 'livescan'
+        ? <LiveScan onViewHistory={() => setActiveTab('history')} />
+        : <HistoryGraph />}
     </div>
   )
 }

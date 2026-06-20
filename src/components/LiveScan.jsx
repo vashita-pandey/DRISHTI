@@ -8,7 +8,7 @@ import AMMSearch from './AMMSearch'
 const TAIL_NUMBERS = ['VT-TEST-001', 'VT-TEST-002', 'VT-TEST-003']
 const AIRCRAFT_TYPES = ['B737', 'A320']
 
-export default function LiveScan() {
+export default function LiveScan({ onViewHistory }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const [cameraActive, setCameraActive] = useState(false)
@@ -22,11 +22,13 @@ export default function LiveScan() {
   const [lastSaved, setLastSaved] = useState(null)
   const [modelLoaded, setModelLoaded] = useState(false)
   const [modelLoading, setModelLoading] = useState(false)
+  const [sessionSummary, setSessionSummary] = useState(null)
   const selectedZoneRef = useRef(null)
   const selectedTailRef = useRef('VT-TEST-001')
   const aircraftTypeRef = useRef('B737')
   const inspectorIdRef = useRef('')
   const runningRef = useRef(false)
+  const sessionRecordsRef = useRef([])
 
   useEffect(() => { selectedZoneRef.current = selectedZone }, [selectedZone])
   useEffect(() => { selectedTailRef.current = selectedTail }, [selectedTail])
@@ -35,6 +37,10 @@ export default function LiveScan() {
 
   async function startCamera() {
     try {
+      sessionRecordsRef.current = []
+      setSessionSummary(null)
+      setSavedCount(0)
+      setLastSaved(null)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
       })
@@ -61,6 +67,25 @@ export default function LiveScan() {
     setCameraActive(false)
     setCurrentDetection(null)
     clearCanvas()
+
+    // build session summary
+    const records = sessionRecordsRef.current
+    if (records.length > 0) {
+      const groundRecords = records.filter(r => r.verdict === 'GROUND')
+      const passRecords = records.filter(r => r.verdict === 'PASS')
+      const zones = [...new Set(records.map(r => r.zone))]
+      const defectTypes = [...new Set(records.map(r => r.defectType))]
+      setSessionSummary({
+        total: records.length,
+        ground: groundRecords.length,
+        pass: passRecords.length,
+        zones,
+        defectTypes,
+        tail: selectedTailRef.current,
+        aircraftType: aircraftTypeRef.current,
+        inspector: inspectorIdRef.current || 'INSPECTOR-01'
+      })
+    }
   }
 
   function clearCanvas() {
@@ -117,29 +142,32 @@ export default function LiveScan() {
       currentDetection.label, zone, aircraftTypeRef.current
     )
 
+    const record = {
+      tailNumber: selectedTailRef.current,
+      aircraftType: aircraftTypeRef.current,
+      inspectionDate: new Date().toISOString(),
+      inspectorId: inspectorIdRef.current || 'INSPECTOR-01',
+      zone: zone.replace('fuselage_front', 'fuselage').replace('fuselage_rear', 'fuselage'),
+      zoneId: zoneToId(zone),
+      defectType: currentDetection.label,
+      confidence: currentDetection.confidence || 0.91,
+      bbox: {
+        x: currentDetection.x,
+        y: currentDetection.y,
+        width: currentDetection.w,
+        height: currentDetection.h
+      },
+      estimatedLengthMM: currentDetection.crack_length_mm ?? null,
+      severityScore: currentDetection.severity,
+      toleranceLimitMM,
+      verdict: currentDetection.verdict,
+      syncStatus: 'pending',
+      createdAt: new Date().toISOString()
+    }
+
     try {
-      await db.inspections.add({
-        tailNumber: selectedTailRef.current,
-        aircraftType: aircraftTypeRef.current,
-        inspectionDate: new Date().toISOString(),
-        inspectorId: inspectorIdRef.current || 'INSPECTOR-01',
-        zone: zone.replace('fuselage_front', 'fuselage').replace('fuselage_rear', 'fuselage'),
-        zoneId: zoneToId(zone),
-        defectType: currentDetection.label,
-        confidence: currentDetection.confidence || 0.91,
-        bbox: {
-          x: currentDetection.x,
-          y: currentDetection.y,
-          width: currentDetection.w,
-          height: currentDetection.h
-        },
-        estimatedLengthMM: currentDetection.crack_length_mm ?? null,
-        severityScore: currentDetection.severity,
-        toleranceLimitMM,
-        verdict: currentDetection.verdict,
-        syncStatus: 'pending',
-        createdAt: new Date().toISOString()
-      })
+      await db.inspections.add(record)
+      sessionRecordsRef.current.push(record)
       setSavedCount(prev => prev + 1)
       setLastSaved({
         ...currentDetection,
@@ -198,8 +226,77 @@ export default function LiveScan() {
   return (
     <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+      {/* Session summary — shows after stopping camera */}
+      {sessionSummary && !cameraActive && (
+        <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600 }}>
+            Inspection Complete — {sessionSummary.tail}
+          </p>
+          <p style={{ color: '#64748b', fontSize: 12 }}>
+            {sessionSummary.aircraftType} · {sessionSummary.inspector}
+          </p>
+
+          {/* Stats */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1, background: '#0a0f1a', borderRadius: 6, padding: '10px', textAlign: 'center' }}>
+              <div style={{ color: '#e2e8f0', fontSize: 22, fontWeight: 700 }}>{sessionSummary.total}</div>
+              <div style={{ color: '#64748b', fontSize: 11 }}>SAVED</div>
+            </div>
+            <div style={{ flex: 1, background: '#0a0f1a', borderRadius: 6, padding: '10px', textAlign: 'center' }}>
+              <div style={{ color: '#86efac', fontSize: 22, fontWeight: 700 }}>{sessionSummary.pass}</div>
+              <div style={{ color: '#64748b', fontSize: 11 }}>PASS</div>
+            </div>
+            <div style={{ flex: 1, background: '#0a0f1a', borderRadius: 6, padding: '10px', textAlign: 'center' }}>
+              <div style={{ color: '#fca5a5', fontSize: 22, fontWeight: 700 }}>{sessionSummary.ground}</div>
+              <div style={{ color: '#64748b', fontSize: 11 }}>GROUND</div>
+            </div>
+          </div>
+
+          {/* Zones flagged */}
+          {sessionSummary.zones.length > 0 && (
+            <div>
+              <p style={{ color: '#64748b', fontSize: 11, marginBottom: 6, textTransform: 'uppercase' }}>Zones Inspected</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {sessionSummary.zones.map(z => (
+                  <span key={z} style={{ background: '#1e2d40', color: '#94a3b8', borderRadius: 4, padding: '3px 8px', fontSize: 11 }}>
+                    {z.replace(/_/g, ' ')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Defect types */}
+          {sessionSummary.defectTypes.length > 0 && (
+            <div>
+              <p style={{ color: '#64748b', fontSize: 11, marginBottom: 6, textTransform: 'uppercase' }}>Defects Found</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {sessionSummary.defectTypes.map(d => (
+                  <span key={d} style={{ background: '#1e2d40', color: '#94a3b8', borderRadius: 4, padding: '3px 8px', fontSize: 11, textTransform: 'capitalize' }}>
+                    {d.replace(/_/g, ' ')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* View in HistoryGraph */}
+          <button
+            onClick={onViewHistory}
+            style={{
+              background: '#1e3a5f', color: '#93c5fd',
+              border: '1px solid #3b82f6', borderRadius: 8,
+              padding: '10px 0', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', width: '100%'
+            }}
+          >
+            📊 View in HistoryGraph
+          </button>
+        </div>
+      )}
+
       {/* Pre-inspection setup */}
-      {!cameraActive && (
+      {!cameraActive && !sessionSummary && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
           {/* Inspector ID */}
@@ -251,6 +348,21 @@ export default function LiveScan() {
           </div>
 
         </div>
+      )}
+
+      {/* New inspection button — shows after summary */}
+      {sessionSummary && !cameraActive && (
+        <button
+          onClick={() => setSessionSummary(null)}
+          style={{
+            background: '#1e2d40', color: '#94a3b8',
+            border: '1px solid #334155', borderRadius: 8,
+            padding: '10px 0', fontSize: 13,
+            cursor: 'pointer', width: '100%'
+          }}
+        >
+          + New Inspection
+        </button>
       )}
 
       {/* Camera + canvas */}
