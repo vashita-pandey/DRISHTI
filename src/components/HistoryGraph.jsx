@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../db/db'
+import EmersonNI from './EmersonNI'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ReferenceLine, ResponsiveContainer
@@ -289,7 +290,11 @@ export default function HistoryGraph() {
           ))}
         </div>
       </div>
+{/* Emerson NI Sensor Feed */}
+      <EmersonNI selectedTail={selectedTail} />
 
     </div>
+    
+    
   )
 }

@@ -1,0 +1,106 @@
+[
+  {
+    "sensor_id": "NI-ECT-001",
+    "sensor_type": "Eddy Current",
+    "manufacturer": "Emerson NI",
+    "model": "NI-9238",
+    "tailNumber": "VT-TEST-001",
+    "zone": "wing",
+    "zoneId": "ZONE_04",
+    "timestamp": "2026-07-15T08:00:00Z",
+    "reading": {
+      "conductivity_change_percent": 12.4,
+      "anomaly_detected": true,
+      "estimated_depth_mm": 1.8,
+      "confidence": 0.91
+    },
+    "status": "ANOMALY"
+  },
+  {
+    "sensor_id": "NI-ECT-001",
+    "sensor_type": "Eddy Current",
+    "manufacturer": "Emerson NI",
+    "model": "NI-9238",
+    "tailNumber": "VT-TEST-001",
+    "zone": "fuselage",
+    "zoneId": "ZONE_02",
+    "timestamp": "2026-07-15T08:15:00Z",
+    "reading": {
+      "conductivity_change_percent": 3.1,
+      "anomaly_detected": false,
+      "estimated_depth_mm": 0.3,
+      "confidence": 0.88
+    },
+    "status": "NORMAL"
+  },
+  {
+    "sensor_id": "NI-UT-002",
+    "sensor_type": "Ultrasonic",
+    "manufacturer": "Emerson NI",
+    "model": "NI-5752",
+    "tailNumber": "VT-TEST-001",
+    "zone": "wing",
+    "zoneId": "ZONE_04",
+    "timestamp": "2026-07-15T08:30:00Z",
+    "reading": {
+      "thickness_mm": 3.2,
+      "baseline_mm": 4.0,
+      "loss_percent": 20.0,
+      "anomaly_detected": true,
+      "confidence": 0.94
+    },
+    "status": "ANOMALY"
+  },
+  {
+    "sensor_id": "NI-UT-002",
+    "sensor_type": "Ultrasonic",
+    "manufacturer": "Emerson NI",
+    "model": "NI-5752",
+    "tailNumber": "VT-TEST-002",
+    "zone": "nose",
+    "zoneId": "ZONE_01",
+    "timestamp": "2026-07-15T09:00:00Z",
+    "reading": {
+      "thickness_mm": 3.9,
+      "baseline_mm": 4.0,
+      "loss_percent": 2.5,
+      "anomaly_detected": false,
+      "confidence": 0.96
+    },
+    "status": "NORMAL"
+  },
+  {
+    "sensor_id": "NI-ECT-003",
+    "sensor_type": "Eddy Current",
+    "manufacturer": "Emerson NI",
+    "model": "NI-9238",
+    "tailNumber": "VT-TEST-002",
+    "zone": "tail",
+    "zoneId": "ZONE_06",
+    "timestamp": "2026-07-15T09:15:00Z",
+    "reading": {
+      "conductivity_change_percent": 18.7,
+      "anomaly_detected": true,
+      "estimated_depth_mm": 2.4,
+      "confidence": 0.89
+    },
+    "status": "ANOMALY"
+  },
+  {
+    "sensor_id": "NI-ECT-003",
+    "sensor_type": "Eddy Current",
+    "manufacturer": "Emerson NI",
+    "model": "NI-9238",
+    "tailNumber": "VT-TEST-003",
+    "zone": "fuselage",
+    "zoneId": "ZONE_03",
+    "timestamp": "2026-07-15T09:30:00Z",
+    "reading": {
+      "conductivity_change_percent": 7.2,
+      "anomaly_detected": true,
+      "estimated_depth_mm": 1.1,
+      "confidence": 0.85
+    },
+    "status": "ANOMALY"
+  }
+]
