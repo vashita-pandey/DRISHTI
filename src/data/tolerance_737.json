@@ -1,45 +1,94 @@
 {
-  "aircraft_type": "Boeing 737",
-  "defect_tolerances": {
-    "crack": {
-      "nose": 2.0,
-      "left_wing": 4.0,
-      "right_wing": 4.0,
-      "fuselage_front": 3.0,
-      "fuselage_rear": 3.0,
-      "tail": 2.5
+  "aircraft": {
+    "B737": {
+      "label": "Boeing 737",
+      "defect_tolerances": {
+        "crack": {
+          "nose": 2.0,
+          "left_wing": 4.0,
+          "right_wing": 4.0,
+          "fuselage_front": 3.0,
+          "fuselage_rear": 3.0,
+          "tail": 2.5
+        },
+        "corrosion": {
+          "nose": 5.0,
+          "left_wing": 8.0,
+          "right_wing": 8.0,
+          "fuselage_front": 10.0,
+          "fuselage_rear": 10.0,
+          "tail": 6.0
+        },
+        "dent": {
+          "nose": 3.0,
+          "left_wing": 6.0,
+          "right_wing": 6.0,
+          "fuselage_front": 8.0,
+          "fuselage_rear": 8.0,
+          "tail": 4.0
+        },
+        "paint_blister": {
+          "nose": 15.0,
+          "left_wing": 20.0,
+          "right_wing": 20.0,
+          "fuselage_front": 25.0,
+          "fuselage_rear": 25.0,
+          "tail": 18.0
+        },
+        "delamination": {
+          "nose": 3.0,
+          "left_wing": 5.0,
+          "right_wing": 5.0,
+          "fuselage_front": 7.0,
+          "fuselage_rear": 7.0,
+          "tail": 4.0
+        }
+      }
     },
-    "corrosion": {
-      "nose": 5.0,
-      "left_wing": 8.0,
-      "right_wing": 8.0,
-      "fuselage_front": 10.0,
-      "fuselage_rear": 10.0,
-      "tail": 6.0
-    },
-    "dent": {
-      "nose": 3.0,
-      "left_wing": 6.0,
-      "right_wing": 6.0,
-      "fuselage_front": 8.0,
-      "fuselage_rear": 8.0,
-      "tail": 4.0
-    },
-    "paint_blister": {
-      "nose": 15.0,
-      "left_wing": 20.0,
-      "right_wing": 20.0,
-      "fuselage_front": 25.0,
-      "fuselage_rear": 25.0,
-      "tail": 18.0
-    },
-    "delamination": {
-      "nose": 3.0,
-      "left_wing": 5.0,
-      "right_wing": 5.0,
-      "fuselage_front": 7.0,
-      "fuselage_rear": 7.0,
-      "tail": 4.0
+    "A320": {
+      "label": "Airbus A320",
+      "defect_tolerances": {
+        "crack": {
+          "nose": 1.5,
+          "left_wing": 3.5,
+          "right_wing": 3.5,
+          "fuselage_front": 2.5,
+          "fuselage_rear": 2.5,
+          "tail": 2.0
+        },
+        "corrosion": {
+          "nose": 4.0,
+          "left_wing": 7.0,
+          "right_wing": 7.0,
+          "fuselage_front": 9.0,
+          "fuselage_rear": 9.0,
+          "tail": 5.0
+        },
+        "dent": {
+          "nose": 2.5,
+          "left_wing": 5.0,
+          "right_wing": 5.0,
+          "fuselage_front": 7.0,
+          "fuselage_rear": 7.0,
+          "tail": 3.5
+        },
+        "paint_blister": {
+          "nose": 12.0,
+          "left_wing": 18.0,
+          "right_wing": 18.0,
+          "fuselage_front": 22.0,
+          "fuselage_rear": 22.0,
+          "tail": 15.0
+        },
+        "delamination": {
+          "nose": 2.5,
+          "left_wing": 4.5,
+          "right_wing": 4.5,
+          "fuselage_front": 6.0,
+          "fuselage_rear": 6.0,
+          "tail": 3.5
+        }
+      }
     }
   }
 }

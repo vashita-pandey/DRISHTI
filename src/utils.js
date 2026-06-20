@@ -12,16 +12,18 @@ export function scoreSeverity(x, y, w, h, imageWidth, imageHeight) {
   }
 }
 
-export function getToleranceLimit(defectType, zoneId) {
+export function getToleranceLimit(defectType, zoneId, aircraftType = 'B737') {
   try {
-    return toleranceData.defect_tolerances[defectType]?.[zoneId] ?? null
+    const aircraft = toleranceData.aircraft[aircraftType]
+    if (!aircraft) return null
+    return aircraft.defect_tolerances[defectType]?.[zoneId] ?? null
   } catch {
     return null
   }
 }
 
-export function getVerdict(defectType, zoneId, crackLengthMm) {
-  const limit = getToleranceLimit(defectType, zoneId)
+export function getVerdict(defectType, zoneId, crackLengthMm, aircraftType = 'B737') {
+  const limit = getToleranceLimit(defectType, zoneId, aircraftType)
   if (limit === null) return 'PASS'
   return crackLengthMm >= limit ? 'GROUND' : 'PASS'
 }

@@ -6,6 +6,7 @@ import { loadModel, runInference } from '../inference'
 import AMMSearch from './AMMSearch'
 
 const TAIL_NUMBERS = ['VT-TEST-001', 'VT-TEST-002', 'VT-TEST-003']
+const AIRCRAFT_TYPES = ['B737', 'A320']
 
 export default function LiveScan() {
   const videoRef = useRef(null)
@@ -13,6 +14,7 @@ export default function LiveScan() {
   const [cameraActive, setCameraActive] = useState(false)
   const [selectedZone, setSelectedZone] = useState(null)
   const [selectedTail, setSelectedTail] = useState('VT-TEST-001')
+  const [aircraftType, setAircraftType] = useState('B737')
   const [inspectorId, setInspectorId] = useState('')
   const [error, setError] = useState(null)
   const [currentDetection, setCurrentDetection] = useState(null)
@@ -22,11 +24,13 @@ export default function LiveScan() {
   const [modelLoading, setModelLoading] = useState(false)
   const selectedZoneRef = useRef(null)
   const selectedTailRef = useRef('VT-TEST-001')
+  const aircraftTypeRef = useRef('B737')
   const inspectorIdRef = useRef('')
   const runningRef = useRef(false)
 
   useEffect(() => { selectedZoneRef.current = selectedZone }, [selectedZone])
   useEffect(() => { selectedTailRef.current = selectedTail }, [selectedTail])
+  useEffect(() => { aircraftTypeRef.current = aircraftType }, [aircraftType])
   useEffect(() => { inspectorIdRef.current = inspectorId }, [inspectorId])
 
   async function startCamera() {
@@ -109,12 +113,14 @@ export default function LiveScan() {
     }
 
     const zone = selectedZoneRef.current
-    const toleranceLimitMM = getToleranceLimit(currentDetection.label, zone)
+    const toleranceLimitMM = getToleranceLimit(
+      currentDetection.label, zone, aircraftTypeRef.current
+    )
 
     try {
       await db.inspections.add({
         tailNumber: selectedTailRef.current,
-        aircraftType: 'B737',
+        aircraftType: aircraftTypeRef.current,
         inspectionDate: new Date().toISOString(),
         inspectorId: inspectorIdRef.current || 'INSPECTOR-01',
         zone: zone.replace('fuselage_front', 'fuselage').replace('fuselage_rear', 'fuselage'),
@@ -174,7 +180,7 @@ export default function LiveScan() {
           ...det,
           crack_length_mm,
           severity: severity_score,
-          verdict: getVerdict(det.label, zone, crack_length_mm)
+          verdict: getVerdict(det.label, zone, crack_length_mm, aircraftTypeRef.current)
         }
       })
 
@@ -214,7 +220,22 @@ export default function LiveScan() {
             />
           </div>
 
-          {/* Tail number selector */}
+          {/* Aircraft type */}
+          <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
+            <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>AIRCRAFT TYPE</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {AIRCRAFT_TYPES.map(type => (
+                <button key={type} onClick={() => setAircraftType(type)} style={{
+                  flex: 1, background: aircraftType === type ? '#00c2ff' : '#1e2d40',
+                  color: aircraftType === type ? '#0a0f1a' : '#94a3b8',
+                  border: 'none', borderRadius: 6, padding: '8px 4px',
+                  fontSize: 13, fontWeight: aircraftType === type ? 700 : 400, cursor: 'pointer'
+                }}>{type}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tail number */}
           <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
             <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>SELECT AIRCRAFT</p>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -247,7 +268,7 @@ export default function LiveScan() {
         {cameraActive && (
           <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '3px 8px' }}>
             <span style={{ fontSize: 11, color: '#00c2ff', fontWeight: 700 }}>
-              {selectedTail} {inspectorIdRef.current ? `· ${inspectorIdRef.current}` : ''}
+              {selectedTail} · {aircraftType} {inspectorIdRef.current ? `· ${inspectorIdRef.current}` : ''}
             </span>
           </div>
         )}
@@ -273,7 +294,7 @@ export default function LiveScan() {
         </div>
       )}
 
-      {/* Last saved confirmation */}
+      {/* Last saved */}
       {lastSaved && (
         <div style={{ background: '#0f2d1a', border: '1px solid #166534', borderRadius: 8, padding: '8px 14px', display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ color: '#86efac', fontSize: 12 }}>✓ Saved — {lastSaved.tail} · {lastSaved.zone?.replace(/_/g, ' ')}</span>
@@ -298,7 +319,7 @@ export default function LiveScan() {
         {cameraActive ? '⏹ Stop Camera' : '▶ Start Camera'}
       </button>
 
-      {/* Manual save */}
+      {/* Save button */}
       {cameraActive && currentDetection && (
         <button onClick={saveDetection} style={{
           background: '#0f2d1a', border: '2px solid #166534',
