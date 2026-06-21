@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { db } from '../db/db'
-import EmersonNI from './EmersonNI'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ReferenceLine, ResponsiveContainer
 } from 'recharts'
+import EmersonNI from './EmersonNI'
 
 const ALL_TAILS = ['VT-TEST-001', 'VT-TEST-002', 'VT-TEST-003']
 
@@ -22,7 +22,6 @@ export default function HistoryGraph() {
   const [chartData, setChartData] = useState([])
   const [projection, setProjection] = useState(null)
   const TOLERANCE_LIMIT = 4.0
-
   const C = 1.35e-10
   const M = 3.0
 
@@ -31,14 +30,13 @@ export default function HistoryGraph() {
     const report = {
       exported_at: new Date().toISOString(),
       aircraft: selectedTail,
-      aircraft_type: 'B737',
+      aircraft_type: tailRecordsToExport[0]?.aircraftType || 'B737',
       total_inspections: tailRecordsToExport.length,
       ground_count: tailRecordsToExport.filter(r => r.verdict === 'GROUND').length,
       pass_count: tailRecordsToExport.filter(r => r.verdict === 'PASS').length,
       inspectors: [...new Set(tailRecordsToExport.map(r => r.inspectorId))],
-      records: tailRecordsToExport
+      records: tailRecordsToExport.map(r => ({ ...r, imageData: undefined }))
     }
-
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -52,20 +50,17 @@ export default function HistoryGraph() {
     if (inspections.length < 2) return null
     const crackOnly = inspections.filter(r => r.defectType === 'crack')
     if (crackOnly.length < 2) return null
-
     const last = crackOnly[crackOnly.length - 1]
     let a = last.estimatedLengthMM || 0
     let cycles = 0
     const maxCycles = 1e7
     const stepSize = 1000
-
     while (a < TOLERANCE_LIMIT && cycles < maxCycles) {
       const deltaK = 1.12 * 50 * Math.sqrt(Math.PI * a / 1000)
       const dadN = C * Math.pow(deltaK, M)
       a += dadN * stepSize
       cycles += stepSize
     }
-
     const hoursRemaining = Math.round(cycles / 3600)
     const inspectionsRemaining = Math.max(0, Math.floor(hoursRemaining / 500))
     return { hoursRemaining, inspectionsRemaining, willBreach: a >= TOLERANCE_LIMIT }
@@ -93,9 +88,7 @@ export default function HistoryGraph() {
         verdict: r.verdict,
         timestamp: new Date(r.inspectionDate).toLocaleTimeString()
       }))
-
     setChartData(filtered)
-
     const crackRecords = filtered.filter(r => r.defectType === 'crack')
     if (crackRecords.length >= 2) {
       setProjection(parisLawProject(filtered))
@@ -106,12 +99,10 @@ export default function HistoryGraph() {
 
   const zoneData = (() => {
     const counts = {}
-    records
-      .filter(r => r.tailNumber === selectedTail)
-      .forEach(r => {
-        const z = r.zone || 'unknown'
-        counts[z] = (counts[z] || 0) + 1
-      })
+    records.filter(r => r.tailNumber === selectedTail).forEach(r => {
+      const z = r.zone || 'unknown'
+      counts[z] = (counts[z] || 0) + 1
+    })
     return counts
   })()
 
@@ -148,17 +139,12 @@ export default function HistoryGraph() {
         <h2 style={{ fontSize: 18, fontWeight: 600, color: '#e2e8f0' }}>HistoryGraph</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: '#64748b', fontSize: 13 }}>{records.length} total</span>
-          <button
-            onClick={exportReport}
-            style={{
-              background: '#1e2d40', color: '#94a3b8',
-              border: '1px solid #334155', borderRadius: 6,
-              padding: '6px 12px', fontSize: 12,
-              cursor: 'pointer', fontWeight: 500
-            }}
-          >
-            ⬇ Export Report
-          </button>
+          <button onClick={exportReport} style={{
+            background: '#1e2d40', color: '#94a3b8',
+            border: '1px solid #334155', borderRadius: 6,
+            padding: '6px 12px', fontSize: 12,
+            cursor: 'pointer', fontWeight: 500
+          }}>⬇ Export</button>
         </div>
       </div>
 
@@ -168,10 +154,8 @@ export default function HistoryGraph() {
           <button key={tail} onClick={() => setSelectedTail(tail)} style={{
             background: selectedTail === tail ? '#00c2ff' : '#1e2d40',
             color: selectedTail === tail ? '#0a0f1a' : '#94a3b8',
-            border: 'none', borderRadius: 6,
-            padding: '8px 14px', fontSize: 12,
-            fontWeight: selectedTail === tail ? 700 : 400,
-            cursor: 'pointer',
+            border: 'none', borderRadius: 6, padding: '8px 14px', fontSize: 12,
+            fontWeight: selectedTail === tail ? 700 : 400, cursor: 'pointer',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2
           }}>
             <span>{tail}</span>
@@ -194,6 +178,36 @@ export default function HistoryGraph() {
           <div style={{ flex: 1, background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '10px', textAlign: 'center' }}>
             <div style={{ color: '#e2e8f0', fontSize: 20, fontWeight: 700 }}>{tailRecords.length}</div>
             <div style={{ color: '#64748b', fontSize: 11 }}>TOTAL</div>
+          </div>
+        </div>
+      )}
+
+      {/* Recent defect images */}
+      {tailRecords.filter(r => r.imageData).length > 0 && (
+        <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '16px' }}>
+          <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>Recent Captures — {selectedTail}</p>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+            {tailRecords.filter(r => r.imageData).slice(-6).reverse().map((r, i) => (
+              <div key={i} style={{ flexShrink: 0, position: 'relative' }}>
+                <img
+                  src={r.imageData}
+                  alt={r.defectType}
+                  style={{
+                    width: 100, height: 70, objectFit: 'cover',
+                    borderRadius: 6,
+                    border: `2px solid ${r.verdict === 'GROUND' ? '#ef4444' : '#22c55e'}`
+                  }}
+                />
+                <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.75)', borderRadius: 3, padding: '1px 5px' }}>
+                  <span style={{ color: '#e2e8f0', fontSize: 9, textTransform: 'capitalize' }}>
+                    {r.defectType?.replace('_', ' ')}
+                  </span>
+                </div>
+                <div style={{ position: 'absolute', top: 4, right: 4, background: r.verdict === 'GROUND' ? '#ef4444' : '#22c55e', borderRadius: 3, padding: '1px 5px' }}>
+                  <span style={{ color: '#000', fontSize: 9, fontWeight: 700 }}>{r.verdict}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -235,10 +249,7 @@ export default function HistoryGraph() {
               <ReferenceLine y={TOLERANCE_LIMIT} stroke="#ef4444" strokeDasharray="4 4"
                 label={{ value: 'Crack tolerance limit', fill: '#ef4444', fontSize: 10 }} />
               <Line
-                type="monotone"
-                dataKey="estimatedLengthMM"
-                stroke="#00c2ff"
-                strokeWidth={2}
+                type="monotone" dataKey="estimatedLengthMM" stroke="#00c2ff" strokeWidth={2}
                 dot={(props) => {
                   const { cx, cy, payload } = props
                   const color = DEFECT_COLORS[payload.defectType] || '#00c2ff'
@@ -290,11 +301,10 @@ export default function HistoryGraph() {
           ))}
         </div>
       </div>
-{/* Emerson NI Sensor Feed */}
+
+      {/* Emerson NI */}
       <EmersonNI selectedTail={selectedTail} />
 
     </div>
-    
-    
   )
 }

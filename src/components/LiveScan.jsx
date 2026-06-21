@@ -36,11 +36,11 @@ export default function LiveScan({ onViewHistory }) {
   useEffect(() => { inspectorIdRef.current = inspectorId }, [inspectorId])
 
   async function startCamera() {
+    sessionRecordsRef.current = []
+    setSessionSummary(null)
+    setSavedCount(0)
+    setLastSaved(null)
     try {
-      sessionRecordsRef.current = []
-      setSessionSummary(null)
-      setSavedCount(0)
-      setLastSaved(null)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
       })
@@ -68,7 +68,6 @@ export default function LiveScan({ onViewHistory }) {
     setCurrentDetection(null)
     clearCanvas()
 
-    // build session summary
     const records = sessionRecordsRef.current
     if (records.length > 0) {
       const groundRecords = records.filter(r => r.verdict === 'GROUND')
@@ -142,6 +141,19 @@ export default function LiveScan({ onViewHistory }) {
       currentDetection.label, zone, aircraftTypeRef.current
     )
 
+    // capture still frame
+    let imageData = null
+    try {
+      const snapCanvas = document.createElement('canvas')
+      const video = videoRef.current
+      snapCanvas.width = video.videoWidth
+      snapCanvas.height = video.videoHeight
+      snapCanvas.getContext('2d').drawImage(video, 0, 0)
+      imageData = snapCanvas.toDataURL('image/jpeg', 0.6)
+    } catch {
+      imageData = null
+    }
+
     const record = {
       tailNumber: selectedTailRef.current,
       aircraftType: aircraftTypeRef.current,
@@ -161,6 +173,7 @@ export default function LiveScan({ onViewHistory }) {
       severityScore: currentDetection.severity,
       toleranceLimitMM,
       verdict: currentDetection.verdict,
+      imageData,
       syncStatus: 'pending',
       createdAt: new Date().toISOString()
     }
@@ -226,7 +239,7 @@ export default function LiveScan({ onViewHistory }) {
   return (
     <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* Session summary — shows after stopping camera */}
+      {/* Session summary */}
       {sessionSummary && !cameraActive && (
         <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <p style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600 }}>
@@ -235,8 +248,6 @@ export default function LiveScan({ onViewHistory }) {
           <p style={{ color: '#64748b', fontSize: 12 }}>
             {sessionSummary.aircraftType} · {sessionSummary.inspector}
           </p>
-
-          {/* Stats */}
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1, background: '#0a0f1a', borderRadius: 6, padding: '10px', textAlign: 'center' }}>
               <div style={{ color: '#e2e8f0', fontSize: 22, fontWeight: 700 }}>{sessionSummary.total}</div>
@@ -251,8 +262,6 @@ export default function LiveScan({ onViewHistory }) {
               <div style={{ color: '#64748b', fontSize: 11 }}>GROUND</div>
             </div>
           </div>
-
-          {/* Zones flagged */}
           {sessionSummary.zones.length > 0 && (
             <div>
               <p style={{ color: '#64748b', fontSize: 11, marginBottom: 6, textTransform: 'uppercase' }}>Zones Inspected</p>
@@ -265,8 +274,6 @@ export default function LiveScan({ onViewHistory }) {
               </div>
             </div>
           )}
-
-          {/* Defect types */}
           {sessionSummary.defectTypes.length > 0 && (
             <div>
               <p style={{ color: '#64748b', fontSize: 11, marginBottom: 6, textTransform: 'uppercase' }}>Defects Found</p>
@@ -279,17 +286,12 @@ export default function LiveScan({ onViewHistory }) {
               </div>
             </div>
           )}
-
-          {/* View in HistoryGraph */}
-          <button
-            onClick={onViewHistory}
-            style={{
-              background: '#1e3a5f', color: '#93c5fd',
-              border: '1px solid #3b82f6', borderRadius: 8,
-              padding: '10px 0', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', width: '100%'
-            }}
-          >
+          <button onClick={onViewHistory} style={{
+            background: '#1e3a5f', color: '#93c5fd',
+            border: '1px solid #3b82f6', borderRadius: 8,
+            padding: '10px 0', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', width: '100%'
+          }}>
             📊 View in HistoryGraph
           </button>
         </div>
@@ -298,8 +300,6 @@ export default function LiveScan({ onViewHistory }) {
       {/* Pre-inspection setup */}
       {!cameraActive && !sessionSummary && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-          {/* Inspector ID */}
           <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
             <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>INSPECTOR ID</p>
             <input
@@ -311,13 +311,10 @@ export default function LiveScan({ onViewHistory }) {
                 width: '100%', background: '#0a0f1a',
                 border: '1px solid #1e2d40', borderRadius: 6,
                 padding: '10px 12px', color: '#e2e8f0',
-                fontSize: 14, outline: 'none',
-                boxSizing: 'border-box'
+                fontSize: 14, outline: 'none', boxSizing: 'border-box'
               }}
             />
           </div>
-
-          {/* Aircraft type */}
           <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
             <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>AIRCRAFT TYPE</p>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -331,8 +328,6 @@ export default function LiveScan({ onViewHistory }) {
               ))}
             </div>
           </div>
-
-          {/* Tail number */}
           <div style={{ background: '#111827', border: '1px solid #1e2d40', borderRadius: 8, padding: '12px 16px' }}>
             <p style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>SELECT AIRCRAFT</p>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -346,21 +341,17 @@ export default function LiveScan({ onViewHistory }) {
               ))}
             </div>
           </div>
-
         </div>
       )}
 
-      {/* New inspection button — shows after summary */}
+      {/* New inspection button */}
       {sessionSummary && !cameraActive && (
-        <button
-          onClick={() => setSessionSummary(null)}
-          style={{
-            background: '#1e2d40', color: '#94a3b8',
-            border: '1px solid #334155', borderRadius: 8,
-            padding: '10px 0', fontSize: 13,
-            cursor: 'pointer', width: '100%'
-          }}
-        >
+        <button onClick={() => setSessionSummary(null)} style={{
+          background: '#1e2d40', color: '#94a3b8',
+          border: '1px solid #334155', borderRadius: 8,
+          padding: '10px 0', fontSize: 13,
+          cursor: 'pointer', width: '100%'
+        }}>
           + New Inspection
         </button>
       )}
