@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#0a0f1a"/>
+  <g transform="translate(96, 96)">
+    <!-- rocket body -->
+    <ellipse cx="0" cy="-10" rx="18" ry="40" fill="#00c2ff"/>
+    <!-- rocket nose -->
+    <polygon points="0,-55 -18,-10 18,-10" fill="#00c2ff"/>
+    <!-- rocket fins left -->
+    <polygon points="-18,20 -35,50 -10,30" fill="#0088bb"/>
+    <!-- rocket fins right -->
+    <polygon points="18,20 35,50 10,30" fill="#0088bb"/>
+    <!-- rocket window -->
+    <circle cx="0" cy="-15" r="8" fill="#0a0f1a" stroke="#00c2ff" stroke-width="2"/>
+    <!-- flame -->
+    <ellipse cx="0" cy="38" rx="10" ry="18" fill="#f59e0b" opacity="0.9"/>
+    <ellipse cx="0" cy="42" rx="6" ry="12" fill="#ffffff" opacity="0.7"/>
+  </g>
+</svg>
