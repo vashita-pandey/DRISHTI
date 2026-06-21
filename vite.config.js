@@ -4,6 +4,7 @@ import mkcert from 'vite-plugin-mkcert'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/DRISHTI/',
   plugins: [
     react(),
     mkcert(),
