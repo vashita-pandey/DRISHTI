@@ -170,20 +170,6 @@ git push
 
 The inference pipeline in `src/inference.js` automatically loads it. No other changes needed.
 
----
-
-## Team
-
-| Person | Role |
-|---|---|
-| Person A | ML pipeline — YOLOv8n training, ONNX export, severity scoring |
-| **Vashita (Person B)** | Frontend — React PWA, ONNX Runtime Web, camera, Dexie, HistoryGraph integration |
-| Person C | Intelligence — Paris' Law JS, HistoryGraph, fleet heatmap, pitch |
-
-**Institution:** VIT Chennai | B.Tech CSE | 3rd Year
-
----
-
 ## Business Impact
 
 - **₹5–10 lakh/hour** ground cost eliminated by removing the WhatsApp verdict loop
