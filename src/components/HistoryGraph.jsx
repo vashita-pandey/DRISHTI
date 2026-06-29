@@ -21,6 +21,7 @@ export default function HistoryGraph() {
   const [selectedTail, setSelectedTail] = useState('VT-TEST-001')
   const [chartData, setChartData] = useState([])
   const [projection, setProjection] = useState(null)
+  const [hoveredZone, setHoveredZone] = useState(null)
   const TOLERANCE_LIMIT = 4.0
   const C = 1.35e-10
   const M = 3.0
@@ -98,10 +99,22 @@ export default function HistoryGraph() {
   }, [records, selectedTail])
 
   const zoneData = (() => {
-    const counts = {}
+    const counts = {
+      nose: 0,
+      fuselage: 0,
+      wing: 0,
+      tail: 0,
+      engine: 0,
+      landing_gear: 0
+    }
     records.filter(r => r.tailNumber === selectedTail).forEach(r => {
       const z = r.zone || 'unknown'
-      counts[z] = (counts[z] || 0) + 1
+      if (z === 'nose') counts.nose++
+      else if (z === 'fuselage') counts.fuselage++
+      else if (z === 'left_wing' || z === 'right_wing' || z === 'wing') counts.wing++
+      else if (z === 'tail') counts.tail++
+      else if (z === 'engine') counts.engine++
+      else if (z === 'landing_gear') counts.landing_gear++
     })
     return counts
   })()
@@ -117,14 +130,62 @@ export default function HistoryGraph() {
     return '#ef4444'
   }
 
-  const zones = [
-    { id: 'nose', label: 'Nose', x: 10, y: 80, w: 60, h: 60 },
-    { id: 'fuselage', label: 'Fuselage', x: 70, y: 70, w: 120, h: 80 },
-    { id: 'wing', label: 'Wings', x: 90, y: 10, w: 100, h: 55 },
-    { id: 'tail', label: 'Tail', x: 250, y: 75, w: 70, h: 70 },
-    { id: 'engine', label: 'Engine', x: 90, y: 155, w: 100, h: 40 },
-    { id: 'landing_gear', label: 'Landing Gear', x: 160, y: 155, w: 80, h: 40 },
-  ]
+
+  const renderZone = (zoneId, pathsAndShapes, labels) => {
+    const isHovered = hoveredZone === zoneId
+    const count = zoneData[zoneId] || 0
+    const hasDefects = count > 0
+    const severityColor = zoneColor(zoneId)
+    
+    const strokeColor = hasDefects ? severityColor : '#00c2ff'
+    const strokeOpacity = isHovered ? 1.0 : (hasDefects ? 0.9 : 0.45)
+    const strokeWidth = isHovered ? 2.0 : 1.2
+    const fillOpacity = isHovered ? 0.35 : (hasDefects ? 0.2 : 0.05)
+    
+    return (
+      <g
+        key={zoneId}
+        onMouseEnter={() => setHoveredZone(zoneId)}
+        onMouseLeave={() => setHoveredZone(null)}
+        style={{ cursor: 'pointer' }}
+      >
+        {pathsAndShapes({
+          fill: severityColor,
+          fillOpacity,
+          stroke: strokeColor,
+          strokeOpacity,
+          strokeWidth,
+          filter: isHovered ? 'url(#glow)' : 'none'
+        })}
+        {labels.map((lbl, idx) => (
+          <g key={idx} style={{ pointerEvents: 'none' }}>
+            <text
+              x={lbl.x}
+              y={lbl.y - 2}
+              textAnchor="middle"
+              fill="#ffffff"
+              fontSize={10}
+              fontWeight="bold"
+              style={{ letterSpacing: '0.02em' }}
+            >
+              {lbl.title}
+            </text>
+            <text
+              x={lbl.x}
+              y={lbl.y + 10}
+              textAnchor="middle"
+              fill={hasDefects ? severityColor : '#00c2ff'}
+              fontSize={8.5}
+              fontWeight="600"
+              opacity={isHovered ? 1.0 : 0.85}
+            >
+              {count} {count === 1 ? 'defect' : 'defects'}
+            </text>
+          </g>
+        ))}
+      </g>
+    )
+  }
 
   const tailRecordCount = (tail) => records.filter(r => r.tailNumber === tail).length
   const tailRecords = records.filter(r => r.tailNumber === selectedTail)
@@ -280,19 +341,126 @@ export default function HistoryGraph() {
         <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>
           Defect frequency by zone — {selectedTail}
         </p>
-        <svg viewBox="0 0 340 220" style={{ width: '100%' }}>
-          {zones.map(zone => (
-            <g key={zone.id}>
-              <rect x={zone.x} y={zone.y} width={zone.w} height={zone.h}
-                rx={6} fill={zoneColor(zone.id)} stroke="#334155" strokeWidth={1} />
-              <text x={zone.x + zone.w / 2} y={zone.y + zone.h / 2 - 4}
-                textAnchor="middle" fill="#e2e8f0" fontSize={9}>{zone.label}</text>
-              <text x={zone.x + zone.w / 2} y={zone.y + zone.h / 2 + 10}
-                textAnchor="middle" fill="#94a3b8" fontSize={9}>{zoneData[zone.id] || 0} defects</text>
-            </g>
-          ))}
+        <svg viewBox="0 0 500 450" style={{ width: '100%', background: '#0a0f1a', borderRadius: 8, border: '1px solid #1e2d40' }}>
+          <defs>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          
+          {/* Nose */}
+          {renderZone(
+            'nose',
+            (props) => (
+              <>
+                <path d="M 180,205 C 145,205 115,215 115,225 C 115,235 145,245 180,245 Z" {...props} />
+              </>
+            ),
+            [{ x: 145, y: 224, title: 'Nose' }]
+          )}
+
+          {/* Fuselage */}
+          {renderZone(
+            'fuselage',
+            (props) => (
+              <>
+                <rect x={180} y={205} width={200} height={40} rx={4} {...props} />
+                <line x1={230} y1={205} x2={230} y2={245} stroke={props.stroke} strokeWidth={props.strokeWidth * 0.4} opacity={props.strokeOpacity * 0.7} />
+                <line x1={280} y1={205} x2={280} y2={245} stroke={props.stroke} strokeWidth={props.strokeWidth * 0.4} opacity={props.strokeOpacity * 0.7} />
+                <line x1={330} y1={205} x2={330} y2={245} stroke={props.stroke} strokeWidth={props.strokeWidth * 0.4} opacity={props.strokeOpacity * 0.7} />
+                <path d="M 168,212 Q 175,212 178,218 L 170,218 Z" fill={props.stroke} opacity={props.strokeOpacity * 0.5} />
+              </>
+            ),
+            [{ x: 280, y: 224, title: 'Fuselage' }]
+          )}
+
+          {/* Wings */}
+          {renderZone(
+            'wing',
+            (props) => (
+              <>
+                {/* Top Wing */}
+                <path d="M 250,205 L 325,50 L 335,50 L 285,205 Z" {...props} />
+                <path d="M 325,50 L 321,42 L 335,50 Z" {...props} />
+                <line x1={255} y1={194} x2={325} y2={54} stroke={props.stroke} strokeWidth={0.5} opacity={props.strokeOpacity * 0.7} />
+                <line x1={278} y1={194} x2={328} y2={74} stroke={props.stroke} strokeWidth={0.5} opacity={props.strokeOpacity * 0.5} />
+
+                {/* Bottom Wing */}
+                <path d="M 250,245 L 325,400 L 335,400 L 285,245 Z" {...props} />
+                <path d="M 325,400 L 321,408 L 335,400 Z" {...props} />
+                <line x1={255} y1={256} x2={325} y2={396} stroke={props.stroke} strokeWidth={0.5} opacity={props.strokeOpacity * 0.7} />
+                <line x1={278} y1={256} x2={328} y2={376} stroke={props.stroke} strokeWidth={0.5} opacity={props.strokeOpacity * 0.5} />
+              </>
+            ),
+            [
+              { x: 325, y: 90, title: 'Wings' },
+              { x: 325, y: 360, title: 'Wings' }
+            ]
+          )}
+
+          {/* Tail */}
+          {renderZone(
+            'tail',
+            (props) => (
+              <>
+                <path d="M 380,205 L 430,130 L 445,130 L 410,225 L 445,320 L 430,320 L 380,245 Z" {...props} />
+                <line x1={395} y1={215} x2={425} y2={150} stroke={props.stroke} strokeWidth={props.strokeWidth * 0.4} opacity={props.strokeOpacity * 0.7} />
+                <line x1={395} y1={235} x2={425} y2={300} stroke={props.stroke} strokeWidth={props.strokeWidth * 0.4} opacity={props.strokeOpacity * 0.7} />
+              </>
+            ),
+            [{ x: 415, y: 224, title: 'Tail' }]
+          )}
+
+          {/* Engine */}
+          {renderZone(
+            'engine',
+            (props) => (
+              <>
+                <rect x={190} y={175} width={45} height={24} rx={3} {...props} />
+                <rect x={190} y={251} width={45} height={24} rx={3} {...props} />
+              </>
+            ),
+            [
+              { x: 190, y: 160, title: 'Engine' },
+              { x: 190, y: 295, title: 'Engine' }
+            ]
+          )}
+
+          {/* Landing Gear */}
+          {renderZone(
+            'landing_gear',
+            (props) => (
+              <>
+                {/* Large Invisible Hit Boxes */}
+                <rect x={235} y={175} width={40} height={40} fill="transparent" pointerEvents="auto" />
+                <rect x={235} y={235} width={40} height={40} fill="transparent" pointerEvents="auto" />
+
+                {/* Top Landing Gear */}
+                <rect x={245} y={185} width={20} height={20} rx={2} fill={props.fill} fillOpacity={props.fillOpacity} stroke={props.stroke} strokeWidth={props.strokeWidth} strokeDasharray="3,3" opacity={props.strokeOpacity} filter={props.filter} />
+                <line x1={255} y1={205} x2={255} y2={195} stroke={props.stroke} strokeWidth={props.strokeWidth} opacity={props.strokeOpacity} />
+                <line x1={246} y1={195} x2={264} y2={195} stroke={props.stroke} strokeWidth={props.strokeWidth * 0.8} opacity={props.strokeOpacity} />
+                <rect x={244} y={190} width={4} height={10} rx={1} fill={props.stroke} stroke={props.stroke} strokeWidth={0.5} opacity={props.strokeOpacity} />
+                <rect x={262} y={190} width={4} height={10} rx={1} fill={props.stroke} stroke={props.stroke} strokeWidth={0.5} opacity={props.strokeOpacity} />
+                
+                {/* Bottom Landing Gear */}
+                <rect x={245} y={245} width={20} height={20} rx={2} fill={props.fill} fillOpacity={props.fillOpacity} stroke={props.stroke} strokeWidth={props.strokeWidth} strokeDasharray="3,3" opacity={props.strokeOpacity} filter={props.filter} />
+                <line x1={255} y1={245} x2={255} y2={255} stroke={props.stroke} strokeWidth={props.strokeWidth} opacity={props.strokeOpacity} />
+                <line x1={246} y1={255} x2={264} y2={255} stroke={props.stroke} strokeWidth={props.strokeWidth * 0.8} opacity={props.strokeOpacity} />
+                <rect x={244} y={250} width={4} height={10} rx={1} fill={props.stroke} stroke={props.stroke} strokeWidth={0.5} opacity={props.strokeOpacity} />
+                <rect x={262} y={250} width={4} height={10} rx={1} fill={props.stroke} stroke={props.stroke} strokeWidth={0.5} opacity={props.strokeOpacity} />
+              </>
+            ),
+            [
+              { x: 255, y: 125, title: 'Landing Gear' },
+              { x: 255, y: 325, title: 'Landing Gear' }
+            ]
+          )}
         </svg>
-        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 12 }}>
           {[['#1e2d40', 'None'], ['#854d0e', 'Low'], ['#ca8a04', 'Medium'], ['#ef4444', 'High']].map(([color, label]) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <div style={{ width: 12, height: 12, borderRadius: 2, background: color }} />
